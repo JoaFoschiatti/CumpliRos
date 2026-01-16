@@ -29,32 +29,34 @@ async function bootstrap() {
   // API prefix
   app.setGlobalPrefix('api/v1');
 
-  // Swagger documentation
-  const config = new DocumentBuilder()
-    .setTitle('CumpliRos API')
-    .setDescription('Panel de Cumplimiento Municipal Rosario - API Documentation')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .addTag('auth', 'Authentication endpoints')
-    .addTag('organizations', 'Organization management')
-    .addTag('locations', 'Location management')
-    .addTag('users', 'User management')
-    .addTag('obligations', 'Obligation management')
-    .addTag('tasks', 'Task and checklist management')
-    .addTag('documents', 'Document and evidence management')
-    .addTag('reviews', 'Review and approval management')
-    .addTag('audit', 'Audit log queries')
-    .addTag('reports', 'Reports and exports')
-    .build();
+  // Swagger documentation - only enabled in non-production environments
+  if (process.env.NODE_ENV !== 'production') {
+    const config = new DocumentBuilder()
+      .setTitle('CumpliRos API')
+      .setDescription('Panel de Cumplimiento Municipal Rosario - API Documentation')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .addTag('auth', 'Authentication endpoints')
+      .addTag('organizations', 'Organization management')
+      .addTag('locations', 'Location management')
+      .addTag('users', 'User management')
+      .addTag('obligations', 'Obligation management')
+      .addTag('tasks', 'Task and checklist management')
+      .addTag('documents', 'Document and evidence management')
+      .addTag('reviews', 'Review and approval management')
+      .addTag('audit', 'Audit log queries')
+      .addTag('reports', 'Reports and exports')
+      .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document);
+    console.log(`Swagger docs at http://localhost:${process.env.PORT || 3001}/api/docs`);
+  }
 
   const port = process.env.PORT || 3001;
   await app.listen(port);
 
   console.log(`CumpliRos API running on http://localhost:${port}`);
-  console.log(`Swagger docs at http://localhost:${port}/api/docs`);
 }
 
 bootstrap();

@@ -10,10 +10,12 @@ interface AuthState {
   currentOrganizationId: string | null;
 
   setAuth: (user: User, accessToken: string, refreshToken: string) => void;
+  setAccessToken: (accessToken: string) => void;
   setOrganizations: (organizations: OrganizationMembership[]) => void;
   setCurrentOrganization: (organizationId: string | null) => void;
   logout: () => void;
   getCurrentOrganization: () => OrganizationMembership | undefined;
+  getAccessToken: () => string | null;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -27,11 +29,10 @@ export const useAuthStore = create<AuthState>()(
 
       setAuth: (user, accessToken, refreshToken) => {
         set({ user, accessToken, refreshToken });
-        // Also store in localStorage for API client
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('accessToken', accessToken);
-          localStorage.setItem('refreshToken', refreshToken);
-        }
+      },
+
+      setAccessToken: (accessToken) => {
+        set({ accessToken });
       },
 
       setOrganizations: (organizations) => {
@@ -55,22 +56,24 @@ export const useAuthStore = create<AuthState>()(
           organizations: [],
           currentOrganizationId: null,
         });
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
-        }
       },
 
       getCurrentOrganization: () => {
         const state = get();
         return state.organizations.find((o) => o.id === state.currentOrganizationId);
       },
+
+      getAccessToken: () => {
+        return get().accessToken;
+      },
     }),
     {
       name: 'cumpliros-auth',
+      // SECURITY: Only persist non-sensitive data and refreshToken
+      // accessToken is kept in memory only to reduce XSS risk
       partialize: (state) => ({
         user: state.user,
-        accessToken: state.accessToken,
+        // accessToken is NOT persisted - kept in memory only
         refreshToken: state.refreshToken,
         organizations: state.organizations,
         currentOrganizationId: state.currentOrganizationId,

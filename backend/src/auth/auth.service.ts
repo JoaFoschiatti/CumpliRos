@@ -256,13 +256,13 @@ export class AuthService {
 
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get('JWT_SECRET'),
-      expiresIn: this.configService.get('JWT_EXPIRES_IN') || '7d',
+      expiresIn: this.configService.get('JWT_EXPIRES_IN') || '15m',
     });
 
     const refreshToken = uuidv4();
     const refreshExpiresIn = this.configService.get('JWT_REFRESH_EXPIRES_IN') || '30d';
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + parseInt(refreshExpiresIn));
+    expiresAt.setTime(expiresAt.getTime() + this.parseDuration(refreshExpiresIn));
 
     await this.prisma.refreshToken.create({
       data: {
@@ -281,5 +281,33 @@ export class AuthService {
         fullName: user.fullName,
       },
     };
+  }
+
+  /**
+   * Parse duration string to milliseconds
+   * Supports: 30d, 7d, 24h, 60m, 30s
+   */
+  private parseDuration(duration: string): number {
+    const match = duration.match(/^(\d+)([dhms])$/);
+    if (!match) {
+      // Default to 30 days if invalid format
+      return 30 * 24 * 60 * 60 * 1000;
+    }
+
+    const value = parseInt(match[1], 10);
+    const unit = match[2];
+
+    switch (unit) {
+      case 'd':
+        return value * 24 * 60 * 60 * 1000;
+      case 'h':
+        return value * 60 * 60 * 1000;
+      case 'm':
+        return value * 60 * 1000;
+      case 's':
+        return value * 1000;
+      default:
+        return 30 * 24 * 60 * 60 * 1000;
+    }
   }
 }

@@ -194,12 +194,12 @@ export class ReportsService {
 
     const rows = obligations.map((o) => [
       o.id,
-      `"${o.title.replace(/"/g, '""')}"`,
+      this.sanitizeCsvField(o.title),
       o.type,
       o.status,
       o.dueDate.toISOString().split('T')[0],
-      o.locationName ? `"${o.locationName}"` : 'Global',
-      `"${o.ownerName}"`,
+      this.sanitizeCsvField(o.locationName) || 'Global',
+      this.sanitizeCsvField(o.ownerName),
       o.documentsCount.toString(),
       o.hasApprovedReview ? 'Sí' : 'No',
     ]);
@@ -207,6 +207,24 @@ export class ReportsService {
     const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
 
     return csv;
+  }
+
+  /**
+   * Sanitize CSV field to prevent formula injection attacks
+   * Prefixes dangerous characters with a single quote
+   */
+  private sanitizeCsvField(field: string | null | undefined): string {
+    if (!field) return '';
+
+    // Escape double quotes
+    let sanitized = field.replace(/"/g, '""');
+
+    // Prevent formula injection - prefix with ' if starts with dangerous characters
+    if (/^[=+\-@\t\r]/.test(sanitized)) {
+      sanitized = `'${sanitized}`;
+    }
+
+    return `"${sanitized}"`;
   }
 
   private getWeekStart(date: Date): Date {

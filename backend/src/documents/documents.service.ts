@@ -1,21 +1,23 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
 import { DocumentResponseDto, DocumentFilterDto } from './dto/document.dto';
 import { PaginationDto, createPaginatedResponse, PaginatedResponse } from '../common/dto/pagination.dto';
 
-// Allowed MIME types for document upload
-const ALLOWED_MIME_TYPES = [
-  'application/pdf',
-  'image/jpeg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-];
+// Allowed MIME types for document upload with their valid extensions
+const MIME_TYPE_EXTENSIONS: Record<string, string[]> = {
+  'application/pdf': ['.pdf'],
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png'],
+  'image/gif': ['.gif'],
+  'image/webp': ['.webp'],
+  'application/msword': ['.doc'],
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+  'application/vnd.ms-excel': ['.xls'],
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+};
+
+const ALLOWED_MIME_TYPES = Object.keys(MIME_TYPE_EXTENSIONS);
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
@@ -35,9 +37,26 @@ export class DocumentsService {
     obligationId?: string,
     taskId?: string,
   ): Promise<DocumentResponseDto> {
+    // SECURITY: Validate fileKey belongs to this organization
+    const expectedPrefix = `org/${organizationId}/`;
+    if (!file.fileKey.startsWith(expectedPrefix)) {
+      this.logger.warn(`Security: Invalid fileKey attempted. Expected prefix: ${expectedPrefix}, got: ${file.fileKey}`);
+      throw new ForbiddenException('El archivo no pertenece a esta organización');
+    }
+
     // Validate MIME type
     if (!ALLOWED_MIME_TYPES.includes(file.mimeType)) {
       throw new BadRequestException('Tipo de archivo no permitido');
+    }
+
+    // SECURITY: Validate file extension matches declared MIME type
+    const fileExtension = this.getFileExtension(file.fileName);
+    const allowedExtensions = MIME_TYPE_EXTENSIONS[file.mimeType] || [];
+    if (!allowedExtensions.includes(fileExtension)) {
+      this.logger.warn(
+        `Security: File extension mismatch. MIME: ${file.mimeType}, Extension: ${fileExtension}, File: ${file.fileName}`,
+      );
+      throw new BadRequestException('La extensión del archivo no coincide con el tipo declarado');
     }
 
     // Validate file size
@@ -201,5 +220,16 @@ export class DocumentsService {
     }
 
     return result;
+  }
+
+  /**
+   * Extract file extension from filename (lowercase)
+   */
+  private getFileExtension(fileName: string): string {
+    const lastDotIndex = fileName.lastIndexOf('.');
+    if (lastDotIndex === -1 || lastDotIndex === fileName.length - 1) {
+      return '';
+    }
+    return fileName.slice(lastDotIndex).toLowerCase();
   }
 }

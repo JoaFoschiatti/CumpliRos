@@ -1,7 +1,10 @@
+import { useAuthStore } from '@/stores/auth.store';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
+  skipAuth?: boolean;
 }
 
 class ApiError extends Error {
@@ -15,8 +18,78 @@ class ApiError extends Error {
   }
 }
 
+// Track if we're currently refreshing to avoid multiple refresh calls
+let isRefreshing = false;
+let refreshPromise: Promise<string | null> | null = null;
+
+/**
+ * Attempt to refresh the access token using the stored refresh token
+ */
+async function refreshAccessToken(): Promise<string | null> {
+  const store = useAuthStore.getState();
+  const refreshToken = store.refreshToken;
+
+  if (!refreshToken) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+
+    if (!response.ok) {
+      // Refresh failed, logout user
+      store.logout();
+      return null;
+    }
+
+    const data = await response.json();
+    store.setAuth(data.user, data.accessToken, data.refreshToken);
+    return data.accessToken;
+  } catch {
+    store.logout();
+    return null;
+  }
+}
+
+/**
+ * Get a valid access token, refreshing if necessary
+ */
+async function getValidAccessToken(): Promise<string | null> {
+  const store = useAuthStore.getState();
+
+  // If we have an access token in memory, use it
+  if (store.accessToken) {
+    return store.accessToken;
+  }
+
+  // If we have a refresh token but no access token, try to refresh
+  if (store.refreshToken) {
+    // Avoid multiple simultaneous refresh calls
+    if (isRefreshing && refreshPromise) {
+      return refreshPromise;
+    }
+
+    isRefreshing = true;
+    refreshPromise = refreshAccessToken();
+
+    try {
+      const token = await refreshPromise;
+      return token;
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
+    }
+  }
+
+  return null;
+}
+
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-  const { params, ...fetchOptions } = options;
+  const { params, skipAuth, ...fetchOptions } = options;
 
   // Build URL with query params
   let url = `${API_URL}${endpoint}`;
@@ -33,8 +106,8 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     }
   }
 
-  // Get token from localStorage
-  const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+  // Get token from store (with auto-refresh if needed)
+  const token = skipAuth ? null : await getValidAccessToken();
 
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -55,6 +128,17 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   const data = await response.json();
 
   if (!response.ok) {
+    // If 401 and we have a refresh token, try to refresh and retry
+    if (response.status === 401 && !skipAuth) {
+      const store = useAuthStore.getState();
+      if (store.refreshToken) {
+        const newToken = await refreshAccessToken();
+        if (newToken) {
+          // Retry the request with new token
+          return request(endpoint, { ...options, skipAuth: false });
+        }
+      }
+    }
     throw new ApiError(response.status, data.message || 'Error en la solicitud', data.errors);
   }
 
@@ -69,6 +153,7 @@ export const auth = {
       {
         method: 'POST',
         body: JSON.stringify({ email, password }),
+        skipAuth: true,
       }
     ),
 
@@ -78,6 +163,7 @@ export const auth = {
       {
         method: 'POST',
         body: JSON.stringify({ email, fullName, password }),
+        skipAuth: true,
       }
     ),
 
@@ -87,6 +173,7 @@ export const auth = {
       {
         method: 'POST',
         body: JSON.stringify({ refreshToken }),
+        skipAuth: true,
       }
     ),
 
@@ -110,6 +197,7 @@ export const auth = {
       {
         method: 'POST',
         body: JSON.stringify({ token, fullName, password }),
+        skipAuth: true,
       }
     ),
 };

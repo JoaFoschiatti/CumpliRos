@@ -13,6 +13,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import {
   RegisterDto,
@@ -35,29 +36,38 @@ export class AuthController {
 
   @Public()
   @Post('register')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 registros por minuto
   @ApiOperation({ summary: 'Registrar nuevo usuario' })
   @ApiResponse({ status: 201, description: 'Usuario registrado exitosamente', type: AuthResponseDto })
   @ApiResponse({ status: 409, description: 'El email ya está registrado' })
+  @ApiResponse({ status: 429, description: 'Demasiadas solicitudes' })
   async register(@Body() dto: RegisterDto): Promise<AuthResponseDto> {
     return this.authService.register(dto);
   }
 
   @Public()
   @Post('login')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 intentos de login por minuto
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Iniciar sesión' })
   @ApiResponse({ status: 200, description: 'Login exitoso', type: AuthResponseDto })
   @ApiResponse({ status: 401, description: 'Credenciales inválidas' })
+  @ApiResponse({ status: 429, description: 'Demasiadas solicitudes' })
   async login(@Body() dto: LoginDto): Promise<AuthResponseDto> {
     return this.authService.login(dto);
   }
 
   @Public()
   @Post('refresh')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 refresh por minuto
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refrescar token de acceso' })
   @ApiResponse({ status: 200, description: 'Token refrescado', type: AuthResponseDto })
   @ApiResponse({ status: 401, description: 'Token de refresco inválido o expirado' })
+  @ApiResponse({ status: 429, description: 'Demasiadas solicitudes' })
   async refreshToken(@Body() dto: RefreshTokenDto): Promise<AuthResponseDto> {
     return this.authService.refreshToken(dto.refreshToken);
   }
@@ -100,9 +110,12 @@ export class AuthController {
 
   @Public()
   @Post('accept-invitation')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 intentos por minuto
   @ApiOperation({ summary: 'Aceptar invitación a organización' })
   @ApiResponse({ status: 200, description: 'Invitación aceptada', type: AuthResponseDto })
   @ApiResponse({ status: 400, description: 'Invitación inválida o expirada' })
+  @ApiResponse({ status: 429, description: 'Demasiadas solicitudes' })
   async acceptInvitation(@Body() dto: AcceptInvitationDto): Promise<AuthResponseDto> {
     return this.authService.acceptInvitation(dto);
   }

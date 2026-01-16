@@ -39,7 +39,16 @@ export class OrganizationsService {
     });
 
     if (existing) {
-      throw new ConflictException('Ya existe una organización con ese CUIT');
+      throw new ConflictException('Ya existe una organizacion con ese CUIT');
+    }
+
+    // Obtener jurisdiccion por defecto (Rosario) si no se especifica
+    let jurisdictionId = dto.jurisdictionId;
+    if (!jurisdictionId) {
+      const defaultJurisdiction = await this.prisma.jurisdiction.findUnique({
+        where: { code: 'ar-sf-rosario' },
+      });
+      jurisdictionId = defaultJurisdiction?.id;
     }
 
     // Create organization and assign creator as OWNER
@@ -47,6 +56,7 @@ export class OrganizationsService {
       data: {
         cuit: dto.cuit,
         name: dto.name,
+        jurisdictionId,
         plan: dto.plan,
         thresholdYellowDays: dto.thresholdYellowDays ?? 15,
         thresholdRedDays: dto.thresholdRedDays ?? 7,
@@ -58,6 +68,9 @@ export class OrganizationsService {
         },
       },
       include: {
+        jurisdiction: {
+          select: { id: true, code: true, name: true, province: true },
+        },
         _count: {
           select: { locations: true, obligations: true },
         },
@@ -82,6 +95,9 @@ export class OrganizationsService {
         take: pagination.take,
         orderBy: { createdAt: pagination.sortOrder },
         include: {
+          jurisdiction: {
+            select: { id: true, code: true, name: true, province: true },
+          },
           _count: {
             select: { locations: true, obligations: true },
           },
@@ -97,6 +113,9 @@ export class OrganizationsService {
     const organization = await this.prisma.organization.findUnique({
       where: { id: organizationId },
       include: {
+        jurisdiction: {
+          select: { id: true, code: true, name: true, province: true },
+        },
         _count: {
           select: { locations: true, obligations: true },
         },
@@ -104,7 +123,7 @@ export class OrganizationsService {
     });
 
     if (!organization) {
-      throw new NotFoundException('Organización no encontrada');
+      throw new NotFoundException('Organizacion no encontrada');
     }
 
     return organization;
@@ -129,6 +148,9 @@ export class OrganizationsService {
       where: { id: organizationId },
       data: dto,
       include: {
+        jurisdiction: {
+          select: { id: true, code: true, name: true, province: true },
+        },
         _count: {
           select: { locations: true, obligations: true },
         },

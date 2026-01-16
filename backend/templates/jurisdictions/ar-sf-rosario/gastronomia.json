@@ -1,0 +1,132 @@
+[
+  {
+    "templateKey": "rosario.gastronomia.habilitacion_comercial",
+    "rubric": "gastronomia",
+    "title": "Habilitacion Comercial Municipal",
+    "description": "Habilitacion municipal obligatoria para operar un establecimiento gastronomico en Rosario",
+    "type": "PERMIT",
+    "defaultPeriodicity": "ANNUAL",
+    "defaultDueRule": "Renovar antes de fecha de vencimiento",
+    "requiresReview": true,
+    "requiredEvidenceCount": 1,
+    "severity": "CRITICAL",
+    "references": {
+      "links": [
+        { "url": "https://www.rosario.gob.ar/inicio/habilitaciones", "title": "Portal de Habilitaciones Rosario" }
+      ],
+      "notes": ["Presentar personalmente en oficina de Habilitaciones"]
+    },
+    "checklist": [
+      { "description": "Completar formulario de solicitud", "isRequired": true },
+      { "description": "Adjuntar plano del local aprobado", "isRequired": true },
+      { "description": "Presentar comprobante de tasa municipal", "isRequired": true },
+      { "description": "Adjuntar certificado de bomberos vigente", "isRequired": true },
+      { "description": "Presentar carnet sanitario de empleados", "isRequired": false }
+    ]
+  },
+  {
+    "templateKey": "rosario.gastronomia.inspeccion_bromatologia",
+    "rubric": "gastronomia",
+    "title": "Inspeccion Bromatologica",
+    "description": "Control sanitario periodico obligatorio por parte de Bromatologia Municipal",
+    "type": "INSPECTION",
+    "defaultPeriodicity": "SEMIANNUAL",
+    "defaultDueRule": "Coordinar con antelacion",
+    "requiresReview": false,
+    "requiredEvidenceCount": 1,
+    "severity": "HIGH",
+    "references": {
+      "notes": ["Mantener local en condiciones para inspeccion sorpresa"]
+    },
+    "checklist": [
+      { "description": "Verificar limpieza general del establecimiento", "isRequired": true },
+      { "description": "Controlar temperaturas de heladeras y freezers", "isRequired": true },
+      { "description": "Revisar fechas de vencimiento de productos", "isRequired": true },
+      { "description": "Verificar carnets sanitarios vigentes", "isRequired": true },
+      { "description": "Revisar estado de extintores", "isRequired": false }
+    ]
+  },
+  {
+    "templateKey": "rosario.gastronomia.carnet_manipulador",
+    "rubric": "gastronomia",
+    "title": "Carnet de Manipulador de Alimentos",
+    "description": "Carnet obligatorio para todos los empleados que manipulan alimentos",
+    "type": "PERMIT",
+    "defaultPeriodicity": "ANNUAL",
+    "defaultDueRule": "Renovar antes de vencimiento",
+    "requiresReview": false,
+    "requiredEvidenceCount": 1,
+    "severity": "HIGH",
+    "references": {
+      "links": [
+        { "url": "https://www.rosario.gob.ar/inicio/carnet-sanitario", "title": "Tramite Carnet Sanitario" }
+      ]
+    },
+    "checklist": [
+      { "description": "Realizar curso de manipulacion de alimentos", "isRequired": true },
+      { "description": "Aprobar examen de conocimientos", "isRequired": true },
+      { "description": "Presentar certificado medico", "isRequired": true },
+      { "description": "Abonar tasa correspondiente", "isRequired": true }
+    ]
+  },
+  {
+    "templateKey": "rosario.gastronomia.tasa_seguridad_higiene",
+    "rubric": "gastronomia",
+    "title": "Tasa de Seguridad e Higiene (TSeH)",
+    "description": "Tributo municipal mensual sobre la facturacion del establecimiento",
+    "type": "TAX",
+    "defaultPeriodicity": "MONTHLY",
+    "defaultDueRule": "Vence el dia 15 de cada mes",
+    "requiresReview": false,
+    "requiredEvidenceCount": 1,
+    "severity": "HIGH",
+    "references": {
+      "links": [
+        { "url": "https://www.rosario.gob.ar/inicio/tseh", "title": "Informacion TSeH" }
+      ]
+    },
+    "checklist": [
+      { "description": "Calcular base imponible del periodo", "isRequired": true },
+      { "description": "Generar boleta de pago", "isRequired": true },
+      { "description": "Realizar pago en banco habilitado o home banking", "isRequired": true },
+      { "description": "Archivar comprobante de pago", "isRequired": true }
+    ]
+  },
+  {
+    "templateKey": "rosario.gastronomia.seguro_responsabilidad_civil",
+    "rubric": "gastronomia",
+    "title": "Seguro de Responsabilidad Civil",
+    "description": "Seguro obligatorio que cubre danos a terceros en el establecimiento",
+    "type": "INSURANCE",
+    "defaultPeriodicity": "ANNUAL",
+    "defaultDueRule": "Renovar antes de vencimiento de poliza",
+    "requiresReview": false,
+    "requiredEvidenceCount": 1,
+    "severity": "HIGH",
+    "checklist": [
+      { "description": "Solicitar cotizacion a aseguradora", "isRequired": true },
+      { "description": "Revisar cobertura y condiciones", "isRequired": true },
+      { "description": "Abonar prima anual o cuotas", "isRequired": true },
+      { "description": "Archivar poliza vigente", "isRequired": true }
+    ]
+  },
+  {
+    "templateKey": "rosario.gastronomia.certificado_bomberos",
+    "rubric": "gastronomia",
+    "title": "Certificado de Bomberos",
+    "description": "Certificado de condiciones contra incendio emitido por Bomberos Voluntarios",
+    "type": "PERMIT",
+    "defaultPeriodicity": "ANNUAL",
+    "defaultDueRule": "Solicitar inspeccion con 30 dias de anticipacion",
+    "requiresReview": true,
+    "requiredEvidenceCount": 1,
+    "severity": "CRITICAL",
+    "checklist": [
+      { "description": "Solicitar turno de inspeccion", "isRequired": true },
+      { "description": "Verificar matafuegos cargados y vigentes", "isRequired": true },
+      { "description": "Revisar senalizacion de emergencia", "isRequired": true },
+      { "description": "Verificar salidas de emergencia despejadas", "isRequired": true },
+      { "description": "Presentar plano de evacuacion", "isRequired": false }
+    ]
+  }
+]

@@ -33,10 +33,12 @@ async function bootstrap() {
   if (process.env.NODE_ENV !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('CumpliRos API')
-      .setDescription('Panel de Cumplimiento Municipal Rosario - API Documentation')
+      .setDescription('Panel de Cumplimiento Municipal Multi-jurisdiccion - API Documentation')
       .setVersion('1.0')
       .addBearerAuth()
       .addTag('auth', 'Authentication endpoints')
+      .addTag('jurisdictions', 'Jurisdiction management')
+      .addTag('templates', 'Obligation templates')
       .addTag('organizations', 'Organization management')
       .addTag('locations', 'Location management')
       .addTag('users', 'User management')

@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'CumpliRos - Panel de Cumplimiento Municipal',
-  description: 'Gestiona obligaciones, vencimientos y documentación de cumplimiento para tu comercio en Rosario',
+  description: 'Gestiona obligaciones, vencimientos y documentacion de cumplimiento para tu comercio. Soporte multi-jurisdiccion.',
   manifest: '/manifest.json',
   icons: {
     icon: '/favicon.ico',

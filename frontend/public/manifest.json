@@ -1,7 +1,7 @@
 {
   "name": "CumpliRos",
   "short_name": "CumpliRos",
-  "description": "Panel de Cumplimiento Municipal Rosario",
+  "description": "Panel de Cumplimiento Municipal Multi-jurisdiccion",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

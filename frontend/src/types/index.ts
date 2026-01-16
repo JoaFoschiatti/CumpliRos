@@ -15,11 +15,34 @@ export interface UserProfile extends User {
   organizations: OrganizationMembership[];
 }
 
+// Jurisdiction types
+export interface Jurisdiction {
+  id: string;
+  code: string;
+  name: string;
+  country: string;
+  province?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  templateCount?: number;
+  organizationCount?: number;
+}
+
+export interface JurisdictionSummary {
+  id: string;
+  code: string;
+  name: string;
+  province?: string;
+}
+
 // Organization types
 export interface Organization {
   id: string;
   cuit: string;
   name: string;
+  jurisdictionId?: string;
+  jurisdiction?: JurisdictionSummary;
   plan: 'BASIC' | 'PROFESSIONAL' | 'STUDIO';
   thresholdYellowDays: number;
   thresholdRedDays: number;
@@ -236,4 +259,81 @@ export interface ComplianceReport {
     completed: number;
     overdue: number;
   }>;
+}
+
+// Template types
+export type Periodicity =
+  | 'WEEKLY'
+  | 'BIWEEKLY'
+  | 'MONTHLY'
+  | 'BIMONTHLY'
+  | 'QUARTERLY'
+  | 'SEMIANNUAL'
+  | 'ANNUAL'
+  | 'BIENNIAL'
+  | 'ONE_TIME';
+
+export type TemplateSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export interface ChecklistTemplateItem {
+  id: string;
+  description: string;
+  order: number;
+  isRequired: boolean;
+}
+
+export interface ObligationTemplate {
+  id: string;
+  jurisdictionId: string;
+  templateKey: string;
+  rubric: string;
+  title: string;
+  description?: string;
+  type: ObligationType;
+  defaultPeriodicity: Periodicity;
+  defaultDueRule?: string;
+  requiresReview: boolean;
+  requiredEvidenceCount: number;
+  severity: TemplateSeverity;
+  references?: {
+    links?: Array<{ url: string; title: string }>;
+    notes?: string[];
+  };
+  version: number;
+  changelog?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  checklistItems?: ChecklistTemplateItem[];
+}
+
+export interface TemplateSummary {
+  id: string;
+  templateKey: string;
+  title: string;
+  rubric: string;
+  type: ObligationType;
+  defaultPeriodicity: Periodicity;
+  severity: TemplateSeverity;
+  checklistItemCount: number;
+}
+
+export interface Rubric {
+  rubric: string;
+  displayName: string;
+  templateCount: number;
+}
+
+export interface ApplyTemplatesRequest {
+  rubric: string;
+  jurisdictionId?: string;
+  templateIds?: string[];
+  locationId?: string;
+  ownerUserId?: string;
+}
+
+export interface ApplyTemplatesResult {
+  obligationsCreated: number;
+  tasksCreated: number;
+  obligationIds: string[];
 }

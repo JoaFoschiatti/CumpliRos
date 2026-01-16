@@ -4,9 +4,12 @@ import {
   ConflictException,
   ForbiddenException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { EmailService } from '../common/email/email.service';
 import { Role } from '@prisma/client';
 import {
   CreateOrganizationDto,
@@ -21,7 +24,13 @@ import { PaginationDto, createPaginatedResponse, PaginatedResponse } from '../co
 
 @Injectable()
 export class OrganizationsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(OrganizationsService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private emailService: EmailService,
+    private configService: ConfigService,
+  ) {}
 
   async create(userId: string, dto: CreateOrganizationDto): Promise<OrganizationResponseDto> {
     // Check if CUIT already exists
@@ -217,7 +226,11 @@ export class OrganizationsService {
     }));
   }
 
-  async inviteMember(organizationId: string, dto: InviteUserDto): Promise<{ token: string }> {
+  async inviteMember(
+    organizationId: string,
+    dto: InviteUserDto,
+    inviterId: string,
+  ): Promise<{ token: string }> {
     // Check if user is already a member
     const existingUser = await this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase() },
@@ -251,6 +264,16 @@ export class OrganizationsService {
       throw new ConflictException('Ya existe una invitación pendiente para este email');
     }
 
+    // Get organization and inviter details
+    const [organization, inviter] = await Promise.all([
+      this.prisma.organization.findUnique({ where: { id: organizationId } }),
+      this.prisma.user.findUnique({ where: { id: inviterId } }),
+    ]);
+
+    if (!organization || !inviter) {
+      throw new NotFoundException('Organización o usuario no encontrado');
+    }
+
     // Create invitation
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
@@ -265,7 +288,22 @@ export class OrganizationsService {
       },
     });
 
-    // TODO: Send invitation email
+    // Send invitation email
+    const baseUrl = this.configService.get<string>('CORS_ORIGINS')?.split(',')[0] || 'http://localhost:3000';
+    const sent = await this.emailService.sendInvitationEmail(
+      dto.email.toLowerCase(),
+      organization.name,
+      inviter.fullName,
+      dto.role,
+      invitation.token,
+      baseUrl,
+    );
+
+    if (sent) {
+      this.logger.log(`Invitation email sent to ${dto.email} for organization ${organization.name}`);
+    } else {
+      this.logger.warn(`Failed to send invitation email to ${dto.email}`);
+    }
 
     return { token: invitation.token };
   }

@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './common/prisma/prisma.module';
+import { StorageModule } from './common/storage/storage.module';
+import { EmailModule } from './common/email/email.module';
 import { AuthModule } from './auth/auth.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { LocationsModule } from './locations/locations.module';
@@ -43,6 +45,10 @@ import { ReportsModule } from './reports/reports.module';
 
     // Database
     PrismaModule,
+
+    // Global services
+    StorageModule,
+    EmailModule,
 
     // Feature modules
     AuthModule,

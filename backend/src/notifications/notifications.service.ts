@@ -1,30 +1,19 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { EmailService } from '../common/email/email.service';
 import { ObligationStatus } from '@prisma/client';
-
-interface EmailNotification {
-  to: string;
-  subject: string;
-  body: string;
-}
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(
     private prisma: PrismaService,
-    private configService: ConfigService,
+    private emailService: EmailService,
   ) {}
 
-  async sendEmail(notification: EmailNotification): Promise<void> {
-    // TODO: Implement actual email sending with Resend/Postmark/SendGrid
-    console.log(`[EMAIL] To: ${notification.to}`);
-    console.log(`[EMAIL] Subject: ${notification.subject}`);
-    console.log(`[EMAIL] Body: ${notification.body}`);
-  }
-
   async notifyUpcomingObligations(): Promise<number> {
-    // Get all organizations
+    // Get all active organizations
     const organizations = await this.prisma.organization.findMany({
       where: { active: true },
     });
@@ -64,36 +53,28 @@ export class NotificationsService {
       // Send notification to each owner
       for (const [email, obligations] of byOwner) {
         const owner = obligations[0].owner;
-        const daysUntilDue = obligations.map((o) => {
+        const obligationsWithDays = obligations.map((o) => {
           const due = new Date(o.dueDate);
-          return Math.floor((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          const daysUntilDue = Math.floor((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          return { title: o.title, daysUntilDue };
         });
 
-        const urgentCount = obligations.filter(
-          (_, i) => daysUntilDue[i] <= org.thresholdRedDays,
+        const urgentCount = obligationsWithDays.filter(
+          (o) => o.daysUntilDue <= org.thresholdRedDays,
         ).length;
 
-        const subject = urgentCount > 0
-          ? `[URGENTE] ${urgentCount} obligaciones próximas a vencer - ${org.name}`
-          : `${obligations.length} obligaciones próximas a vencer - ${org.name}`;
+        const sent = await this.emailService.sendUpcomingObligationsEmail(
+          email,
+          owner.fullName,
+          org.name,
+          obligationsWithDays,
+          urgentCount,
+        );
 
-        const obligationsList = obligations
-          .map((o, i) => `- ${o.title} (vence en ${daysUntilDue[i]} días)`)
-          .join('\n');
-
-        const body = `Hola ${owner.fullName},
-
-Tienes ${obligations.length} obligación(es) próxima(s) a vencer en ${org.name}:
-
-${obligationsList}
-
-Por favor, revisa el panel de cumplimiento para más detalles.
-
-Saludos,
-CumpliRos`;
-
-        await this.sendEmail({ to: email, subject, body });
-        notificationsSent++;
+        if (sent) {
+          notificationsSent++;
+          this.logger.log(`Sent upcoming obligations notification to ${email}`);
+        }
       }
     }
 
@@ -119,7 +100,11 @@ CumpliRos`;
         },
       });
 
-      // Also get owners
+      if (overdueObligations.length === 0) {
+        continue;
+      }
+
+      // Get organization owners
       const owners = await this.prisma.userOrg.findMany({
         where: {
           organizationId: org.id,
@@ -130,29 +115,24 @@ CumpliRos`;
         },
       });
 
-      if (overdueObligations.length > 0 && owners.length > 0) {
-        const obligationsList = overdueObligations
-          .map((o) => `- ${o.title} (responsable: ${o.owner.fullName})`)
-          .join('\n');
+      if (owners.length > 0) {
+        const obligationsData = overdueObligations.map((o) => ({
+          title: o.title,
+          ownerName: o.owner.fullName,
+        }));
 
-        const subject = `[VENCIDO] ${overdueObligations.length} obligaciones vencidas - ${org.name}`;
-
-        const body = `Alerta: Hay ${overdueObligations.length} obligación(es) vencida(s) en ${org.name}:
-
-${obligationsList}
-
-Por favor, tome acción inmediata.
-
-Saludos,
-CumpliRos`;
-
+        // Send notification to each owner
         for (const ownerMembership of owners) {
-          await this.sendEmail({
-            to: ownerMembership.user.email,
-            subject,
-            body,
-          });
-          notificationsSent++;
+          const sent = await this.emailService.sendOverdueObligationsEmail(
+            ownerMembership.user.email,
+            org.name,
+            obligationsData,
+          );
+
+          if (sent) {
+            notificationsSent++;
+            this.logger.log(`Sent overdue obligations notification to ${ownerMembership.user.email}`);
+          }
         }
       }
     }
@@ -167,21 +147,14 @@ CumpliRos`;
     organizationName: string,
     obligationTitle: string,
   ): Promise<void> {
-    const subject = `Revisión requerida: ${obligationTitle} - ${organizationName}`;
+    await this.emailService.sendReviewRequiredEmail(
+      reviewerEmail,
+      reviewerName,
+      organizationName,
+      obligationTitle,
+    );
 
-    const body = `Hola ${reviewerName},
-
-Se requiere tu revisión para la siguiente obligación:
-
-Obligación: ${obligationTitle}
-Organización: ${organizationName}
-
-Por favor, accede al panel de cumplimiento para revisar y aprobar o rechazar.
-
-Saludos,
-CumpliRos`;
-
-    await this.sendEmail({ to: reviewerEmail, subject, body });
+    this.logger.log(`Sent review required notification to ${reviewerEmail} for obligation ${obligationId}`);
   }
 
   async notifyReviewRejected(
@@ -192,21 +165,15 @@ CumpliRos`;
     reviewerName: string,
     comment: string,
   ): Promise<void> {
-    const subject = `Revisión rechazada: ${obligationTitle} - ${organizationName}`;
+    await this.emailService.sendReviewRejectedEmail(
+      ownerEmail,
+      ownerName,
+      organizationName,
+      obligationTitle,
+      reviewerName,
+      comment,
+    );
 
-    const body = `Hola ${ownerName},
-
-La revisión de la siguiente obligación ha sido rechazada:
-
-Obligación: ${obligationTitle}
-Revisado por: ${reviewerName}
-Observaciones: ${comment}
-
-Por favor, corrige las observaciones y vuelve a enviar para revisión.
-
-Saludos,
-CumpliRos`;
-
-    await this.sendEmail({ to: ownerEmail, subject, body });
+    this.logger.log(`Sent review rejected notification to ${ownerEmail}`);
   }
 }

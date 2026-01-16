@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { StorageService } from '../common/storage/storage.service';
 import { DocumentResponseDto, DocumentFilterDto } from './dto/document.dto';
 import { PaginationDto, createPaginatedResponse, PaginatedResponse } from '../common/dto/pagination.dto';
 
@@ -20,7 +21,12 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 @Injectable()
 export class DocumentsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(DocumentsService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private storageService: StorageService,
+  ) {}
 
   async create(
     organizationId: string,
@@ -134,7 +140,14 @@ export class DocumentsService {
       throw new NotFoundException('Documento no encontrado');
     }
 
-    // TODO: Delete file from S3
+    // Delete file from S3
+    try {
+      await this.storageService.deleteFile(document.fileKey);
+      this.logger.log(`File deleted from S3: ${document.fileKey}`);
+    } catch (error: any) {
+      this.logger.warn(`Could not delete file from S3: ${error.message}`);
+      // Continue with database deletion even if S3 deletion fails
+    }
 
     await this.prisma.document.delete({
       where: { id: documentId },
@@ -152,17 +165,17 @@ export class DocumentsService {
     }
 
     // Generate unique file key
-    const timestamp = Date.now();
-    const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const fileKey = `org/${organizationId}/docs/${timestamp}_${sanitizedFileName}`;
+    const fileKey = this.storageService.generateFileKey(organizationId, fileName);
 
-    // TODO: Generate pre-signed URL from S3
-    const uploadUrl = `https://storage.example.com/${fileKey}`;
+    // Generate pre-signed URL from S3
+    const uploadUrl = await this.storageService.getUploadUrl(fileKey, mimeType);
+
+    this.logger.debug(`Generated upload URL for file: ${fileKey}`);
 
     return { uploadUrl, fileKey };
   }
 
-  private enrichDocument(document: any, includeSignedUrl = false): DocumentResponseDto {
+  private async enrichDocument(document: any, includeSignedUrl = false): Promise<DocumentResponseDto> {
     const result: DocumentResponseDto = {
       id: document.id,
       organizationId: document.organizationId,
@@ -178,8 +191,13 @@ export class DocumentsService {
     };
 
     if (includeSignedUrl) {
-      // TODO: Generate signed URL for download
-      result.signedUrl = `https://storage.example.com/${document.fileKey}`;
+      // Generate signed URL for download
+      try {
+        result.signedUrl = await this.storageService.getDownloadUrl(document.fileKey);
+      } catch (error: any) {
+        this.logger.warn(`Could not generate signed URL: ${error.message}`);
+        result.signedUrl = undefined;
+      }
     }
 
     return result;

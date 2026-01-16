@@ -8,6 +8,28 @@ datasource db {
 }
 
 // =====================================================
+// JURISDICTIONS (Ciudades/Municipios)
+// =====================================================
+
+model Jurisdiction {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String   @unique @db.VarChar(50) // ej: ar-sf-rosario, ar-sf-santa-fe
+  name      String   @db.VarChar(255) // ej: Rosario, Santa Fe
+  country   String   @default("AR") @db.VarChar(10)
+  province  String?  @db.VarChar(100) // ej: Santa Fe
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organizations       Organization[]
+  locations           Location[]
+  obligationTemplates ObligationTemplate[]
+
+  @@map("jurisdictions")
+}
+
+// =====================================================
 // ORGANIZATION & MULTI-TENANCY
 // =====================================================
 
@@ -15,6 +37,7 @@ model Organization {
   id                  String   @id @default(uuid()) @db.Uuid
   cuit                String   @unique @db.VarChar(13)
   name                String   @db.VarChar(255)
+  jurisdictionId      String?  @map("jurisdiction_id") @db.Uuid
   plan                Plan     @default(BASIC)
   thresholdYellowDays Int      @default(15) @map("threshold_yellow_days")
   thresholdRedDays    Int      @default(7) @map("threshold_red_days")
@@ -24,6 +47,7 @@ model Organization {
   updatedAt           DateTime @updatedAt @map("updated_at")
 
   // Relations
+  jurisdiction Jurisdiction? @relation(fields: [jurisdictionId], references: [id])
   locations    Location[]
   userOrgs     UserOrg[]
   obligations  Obligation[]
@@ -31,6 +55,7 @@ model Organization {
   auditEvents  AuditEvent[]
   invitations  Invitation[]
 
+  @@index([jurisdictionId])
   @@map("organizations")
 }
 
@@ -47,6 +72,7 @@ enum Plan {
 model Location {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String   @map("organization_id") @db.Uuid
+  jurisdictionId String?  @map("jurisdiction_id") @db.Uuid // Opcional: permite locales en distintas jurisdicciones
   name           String   @db.VarChar(255)
   address        String?  @db.VarChar(500)
   rubric         String?  @db.VarChar(255)
@@ -56,9 +82,11 @@ model Location {
 
   // Relations
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  jurisdiction Jurisdiction? @relation(fields: [jurisdictionId], references: [id])
   obligations  Obligation[]
 
   @@index([organizationId])
+  @@index([jurisdictionId])
   @@map("locations")
 }
 
@@ -344,4 +372,73 @@ model AuditEvent {
   @@index([organizationId, entityType])
   @@index([userId])
   @@map("audit_events")
+}
+
+// =====================================================
+// TEMPLATES (Plantillas por Jurisdicción)
+// =====================================================
+
+model ObligationTemplate {
+  id                    String             @id @default(uuid()) @db.Uuid
+  jurisdictionId        String             @map("jurisdiction_id") @db.Uuid
+  templateKey           String             @unique @map("template_key") @db.VarChar(255) // ej: rosario.habilitacion.renovacion_anual
+  rubric                String             @db.VarChar(100) // gastronomia, estetica, comercio, etc.
+  title                 String             @db.VarChar(255)
+  description           String?            @db.Text
+  type                  ObligationType
+  defaultPeriodicity    Periodicity        @default(ANNUAL) @map("default_periodicity")
+  defaultDueRule        String?            @map("default_due_rule") @db.VarChar(255) // regla abstracta o texto
+  requiresReview        Boolean            @default(false) @map("requires_review")
+  requiredEvidenceCount Int                @default(0) @map("required_evidence_count")
+  severity              TemplateSeverity   @default(MEDIUM) // para semáforo
+  references            Json?              @db.JsonB // { links: [], notes: [] }
+  version               Int                @default(1)
+  changelog             String?            @db.Text
+  isActive              Boolean            @default(true) @map("is_active")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  jurisdiction    Jurisdiction            @relation(fields: [jurisdictionId], references: [id], onDelete: Cascade)
+  checklistItems  ChecklistTemplateItem[]
+
+  @@unique([jurisdictionId, rubric, templateKey])
+  @@index([jurisdictionId, rubric])
+  @@index([jurisdictionId, isActive])
+  @@map("obligation_templates")
+}
+
+model ChecklistTemplateItem {
+  id                   String             @id @default(uuid()) @db.Uuid
+  obligationTemplateId String             @map("obligation_template_id") @db.Uuid
+  description          String             @db.VarChar(500)
+  order                Int                @default(0)
+  isRequired           Boolean            @default(false) @map("is_required")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  obligationTemplate ObligationTemplate @relation(fields: [obligationTemplateId], references: [id], onDelete: Cascade)
+
+  @@index([obligationTemplateId])
+  @@map("checklist_template_items")
+}
+
+enum Periodicity {
+  WEEKLY       // Semanal
+  BIWEEKLY     // Quincenal
+  MONTHLY      // Mensual
+  BIMONTHLY    // Bimestral
+  QUARTERLY    // Trimestral
+  SEMIANNUAL   // Semestral
+  ANNUAL       // Anual
+  BIENNIAL     // Bienal
+  ONE_TIME     // Única vez
+}
+
+enum TemplateSeverity {
+  LOW          // Bajo impacto
+  MEDIUM       // Impacto medio
+  HIGH         // Alto impacto
+  CRITICAL     // Crítico
 }

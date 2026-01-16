@@ -14,15 +14,20 @@ import {
 import { Plan, Role } from '@prisma/client';
 
 export class CreateOrganizationDto {
-  @ApiProperty({ example: '30-12345678-9', description: 'CUIT de la organización' })
+  @ApiProperty({ example: '30-12345678-9', description: 'CUIT de la organizacion' })
   @IsString()
-  @Matches(/^\d{2}-\d{8}-\d{1}$/, { message: 'CUIT inválido. Formato: XX-XXXXXXXX-X' })
+  @Matches(/^\d{2}-\d{8}-\d{1}$/, { message: 'CUIT invalido. Formato: XX-XXXXXXXX-X' })
   cuit: string;
 
   @ApiProperty({ example: 'Mi Comercio S.R.L.' })
   @IsString()
   @MaxLength(255)
   name: string;
+
+  @ApiPropertyOptional({ description: 'ID de la jurisdiccion (usa Rosario por defecto si no se especifica)' })
+  @IsOptional()
+  @IsUUID()
+  jurisdictionId?: string;
 
   @ApiPropertyOptional({ enum: Plan, default: Plan.BASIC })
   @IsOptional()
@@ -62,6 +67,20 @@ export class UpdateMemberRoleDto {
   role: Role;
 }
 
+export class JurisdictionSummaryDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty({ example: 'ar-sf-rosario' })
+  code: string;
+
+  @ApiProperty({ example: 'Rosario' })
+  name: string;
+
+  @ApiPropertyOptional({ example: 'Santa Fe' })
+  province?: string;
+}
+
 export class OrganizationResponseDto {
   @ApiProperty()
   id: string;
@@ -71,6 +90,12 @@ export class OrganizationResponseDto {
 
   @ApiProperty()
   name: string;
+
+  @ApiPropertyOptional()
+  jurisdictionId?: string;
+
+  @ApiPropertyOptional({ type: JurisdictionSummaryDto })
+  jurisdiction?: JurisdictionSummaryDto;
 
   @ApiProperty({ enum: Plan })
   plan: Plan;

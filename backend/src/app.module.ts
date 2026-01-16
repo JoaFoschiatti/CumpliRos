@@ -15,6 +15,8 @@ import { ReviewsModule } from './reviews/reviews.module';
 import { AuditModule } from './audit/audit.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
+import { JurisdictionsModule } from './jurisdictions/jurisdictions.module';
+import { TemplatesModule } from './templates/templates.module';
 
 @Module({
   imports: [
@@ -52,6 +54,8 @@ import { ReportsModule } from './reports/reports.module';
 
     // Feature modules
     AuthModule,
+    JurisdictionsModule,
+    TemplatesModule,
     OrganizationsModule,
     LocationsModule,
     UsersModule,

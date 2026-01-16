@@ -1,10 +1,26 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { ReviewStatus, Role, ObligationStatus } from '@prisma/client';
-import { AuditService } from '../audit/audit.service';
-import { AuditActions } from '../audit/dto/audit.dto';
-import { CreateReviewDto, ReviewResponseDto } from './dto/review.dto';
-import { PaginationDto, createPaginatedResponse, PaginatedResponse } from '../common/dto/pagination.dto';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from "@nestjs/common";
+import { PrismaService } from "../common/prisma/prisma.service";
+import { Prisma, ReviewStatus, Role, ObligationStatus } from "@prisma/client";
+import { AuditService } from "../audit/audit.service";
+import { AuditActions } from "../audit/dto/audit.dto";
+import { CreateReviewDto, ReviewResponseDto } from "./dto/review.dto";
+import {
+  PaginationDto,
+  createPaginatedResponse,
+  PaginatedResponse,
+} from "../common/dto/pagination.dto";
+
+type ReviewWithRelations = Prisma.ReviewGetPayload<{
+  include: {
+    reviewer: { select: { id: true; fullName: true; email: true } };
+    obligation: { select: { id: true; title: true } };
+  };
+}>;
 
 @Injectable()
 export class ReviewsService {
@@ -24,11 +40,11 @@ export class ReviewsService {
     });
 
     if (!obligation) {
-      throw new NotFoundException('Obligación no encontrada');
+      throw new NotFoundException("Obligación no encontrada");
     }
 
     if (!obligation.requiresReview) {
-      throw new BadRequestException('Esta obligación no requiere revisión');
+      throw new BadRequestException("Esta obligación no requiere revisión");
     }
 
     // Verify user has permission to review (ACCOUNTANT, MANAGER, or OWNER)
@@ -37,17 +53,21 @@ export class ReviewsService {
     });
 
     if (!membership) {
-      throw new ForbiddenException('No tienes acceso a esta organización');
+      throw new ForbiddenException("No tienes acceso a esta organización");
     }
 
     const allowedRoles: Role[] = [Role.OWNER, Role.ACCOUNTANT, Role.MANAGER];
     if (!allowedRoles.includes(membership.role)) {
-      throw new ForbiddenException('No tienes permisos para realizar revisiones');
+      throw new ForbiddenException(
+        "No tienes permisos para realizar revisiones",
+      );
     }
 
     // Require comment for rejection
     if (dto.status === ReviewStatus.REJECTED && !dto.comment) {
-      throw new BadRequestException('Se requiere un comentario para rechazar la revisión');
+      throw new BadRequestException(
+        "Se requiere un comentario para rechazar la revisión",
+      );
     }
 
     const review = await this.prisma.review.create({
@@ -81,7 +101,7 @@ export class ReviewsService {
     await this.auditService.log(
       organizationId,
       action,
-      'Review',
+      "Review",
       review.id,
       reviewerUserId,
       {
@@ -105,7 +125,7 @@ export class ReviewsService {
     });
 
     if (!obligation) {
-      throw new NotFoundException('Obligación no encontrada');
+      throw new NotFoundException("Obligación no encontrada");
     }
 
     const where = { obligationId };
@@ -115,7 +135,7 @@ export class ReviewsService {
         where,
         skip: pagination.skip,
         take: pagination.take,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         include: {
           reviewer: { select: { id: true, fullName: true, email: true } },
           obligation: { select: { id: true, title: true } },
@@ -126,7 +146,12 @@ export class ReviewsService {
 
     const enrichedReviews = reviews.map((r) => this.enrichReview(r));
 
-    return createPaginatedResponse(enrichedReviews, total, pagination.page!, pagination.limit!);
+    return createPaginatedResponse(
+      enrichedReviews,
+      total,
+      pagination.page!,
+      pagination.limit!,
+    );
   }
 
   async findPendingReviews(
@@ -138,7 +163,9 @@ export class ReviewsService {
       where: {
         organizationId,
         requiresReview: true,
-        status: { notIn: [ObligationStatus.COMPLETED, ObligationStatus.NOT_APPLICABLE] },
+        status: {
+          notIn: [ObligationStatus.COMPLETED, ObligationStatus.NOT_APPLICABLE],
+        },
         reviews: {
           none: { status: ReviewStatus.APPROVED },
         },
@@ -149,13 +176,18 @@ export class ReviewsService {
     const obligationIds = obligationsWithPendingReview.map((o) => o.id);
 
     if (obligationIds.length === 0) {
-      return createPaginatedResponse([], 0, pagination.page!, pagination.limit!);
+      return createPaginatedResponse(
+        [],
+        0,
+        pagination.page!,
+        pagination.limit!,
+      );
     }
 
     // Get the latest review for each obligation (if any)
     const reviews = await this.prisma.review.findMany({
       where: { obligationId: { in: obligationIds } },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       include: {
         reviewer: { select: { id: true, fullName: true, email: true } },
         obligation: { select: { id: true, title: true } },
@@ -163,14 +195,16 @@ export class ReviewsService {
     });
 
     // Group by obligation and get latest
-    const latestByObligation = new Map<string, typeof reviews[0]>();
+    const latestByObligation = new Map<string, (typeof reviews)[0]>();
     for (const review of reviews) {
       if (!latestByObligation.has(review.obligationId)) {
         latestByObligation.set(review.obligationId, review);
       }
     }
 
-    const enrichedReviews = Array.from(latestByObligation.values()).map((r) => this.enrichReview(r));
+    const enrichedReviews = Array.from(latestByObligation.values()).map((r) =>
+      this.enrichReview(r),
+    );
 
     return createPaginatedResponse(
       enrichedReviews.slice(pagination.skip, pagination.skip + pagination.take),
@@ -180,13 +214,15 @@ export class ReviewsService {
     );
   }
 
-  async getLatestApprovedReview(obligationId: string): Promise<ReviewResponseDto | null> {
+  async getLatestApprovedReview(
+    obligationId: string,
+  ): Promise<ReviewResponseDto | null> {
     const review = await this.prisma.review.findFirst({
       where: {
         obligationId,
         status: ReviewStatus.APPROVED,
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       include: {
         reviewer: { select: { id: true, fullName: true, email: true } },
         obligation: { select: { id: true, title: true } },
@@ -196,7 +232,7 @@ export class ReviewsService {
     return review ? this.enrichReview(review) : null;
   }
 
-  private enrichReview(review: any): ReviewResponseDto {
+  private enrichReview(review: ReviewWithRelations): ReviewResponseDto {
     return {
       id: review.id,
       obligationId: review.obligationId,

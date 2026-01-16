@@ -1,5 +1,5 @@
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, OnModuleInit, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import {
   S3Client,
   PutObjectCommand,
@@ -8,8 +8,8 @@ import {
   HeadBucketCommand,
   HeadObjectCommand,
   CreateBucketCommand,
-} from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export interface UploadUrlResponse {
   uploadUrl: string;
@@ -23,18 +23,19 @@ export class StorageService implements OnModuleInit {
   private bucket: string;
 
   constructor(private configService: ConfigService) {
-    const endpoint = this.configService.get<string>('S3_ENDPOINT');
-    const region = this.configService.get<string>('S3_REGION') || 'us-east-1';
-    const accessKeyId = this.configService.get<string>('S3_ACCESS_KEY');
-    const secretAccessKey = this.configService.get<string>('S3_SECRET_KEY');
-    this.bucket = this.configService.get<string>('S3_BUCKET') || 'cumpliros-docs';
+    const endpoint = this.configService.get<string>("S3_ENDPOINT");
+    const region = this.configService.get<string>("S3_REGION") || "us-east-1";
+    const accessKeyId = this.configService.get<string>("S3_ACCESS_KEY");
+    const secretAccessKey = this.configService.get<string>("S3_SECRET_KEY");
+    this.bucket =
+      this.configService.get<string>("S3_BUCKET") || "cumpliros-docs";
 
     this.s3Client = new S3Client({
       endpoint,
       region,
       credentials: {
-        accessKeyId: accessKeyId || '',
-        secretAccessKey: secretAccessKey || '',
+        accessKeyId: accessKeyId || "",
+        secretAccessKey: secretAccessKey || "",
       },
       forcePathStyle: true, // Required for MinIO compatibility
     });
@@ -48,16 +49,29 @@ export class StorageService implements OnModuleInit {
     try {
       await this.s3Client.send(new HeadBucketCommand({ Bucket: this.bucket }));
       this.logger.log(`Bucket '${this.bucket}' exists and is accessible`);
-    } catch (error: any) {
-      if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+    } catch (error) {
+      const errorName = error instanceof Error ? error.name : undefined;
+      const errorStatus =
+        typeof error === "object" && error !== null && "$metadata" in error
+          ? (error as { $metadata?: { httpStatusCode?: number } }).$metadata
+              ?.httpStatusCode
+          : undefined;
+      if (errorName === "NotFound" || errorStatus === 404) {
         try {
-          await this.s3Client.send(new CreateBucketCommand({ Bucket: this.bucket }));
+          await this.s3Client.send(
+            new CreateBucketCommand({ Bucket: this.bucket }),
+          );
           this.logger.log(`Bucket '${this.bucket}' created successfully`);
-        } catch (createError: any) {
-          this.logger.warn(`Could not create bucket: ${createError.message}`);
+        } catch (createError) {
+          const message =
+            createError instanceof Error
+              ? createError.message
+              : String(createError);
+          this.logger.warn(`Could not create bucket: ${message}`);
         }
       } else {
-        this.logger.warn(`Could not check bucket existence: ${error.message}`);
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.warn(`Could not check bucket existence: ${message}`);
       }
     }
   }
@@ -119,7 +133,9 @@ export class StorageService implements OnModuleInit {
    * Read object metadata (size/type) from S3.
    * Useful to validate uploads instead of trusting client-provided values.
    */
-  async getObjectMetadata(fileKey: string): Promise<{ sizeBytes: number; mimeType?: string }> {
+  async getObjectMetadata(
+    fileKey: string,
+  ): Promise<{ sizeBytes: number; mimeType?: string }> {
     const command = new HeadObjectCommand({
       Bucket: this.bucket,
       Key: fileKey,
@@ -138,7 +154,7 @@ export class StorageService implements OnModuleInit {
    */
   generateFileKey(organizationId: string, fileName: string): string {
     const timestamp = Date.now();
-    const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
     return `org/${organizationId}/docs/${timestamp}_${sanitizedFileName}`;
   }
 }

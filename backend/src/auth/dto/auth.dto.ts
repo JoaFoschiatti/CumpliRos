@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsEmail,
   IsString,
@@ -6,37 +6,37 @@ import {
   MaxLength,
   Matches,
   IsOptional,
-  IsUUID,
-} from 'class-validator';
+} from "class-validator";
 
 export class RegisterDto {
-  @ApiProperty({ example: 'juan@example.com' })
-  @IsEmail({}, { message: 'Email inválido' })
+  @ApiProperty({ example: "juan@example.com" })
+  @IsEmail({}, { message: "Email inválido" })
   @MaxLength(255)
   email: string;
 
-  @ApiProperty({ example: 'Juan Pérez' })
+  @ApiProperty({ example: "Juan Pérez" })
   @IsString()
-  @MinLength(2, { message: 'El nombre debe tener al menos 2 caracteres' })
+  @MinLength(2, { message: "El nombre debe tener al menos 2 caracteres" })
   @MaxLength(255)
   fullName: string;
 
-  @ApiProperty({ example: 'Password123!' })
+  @ApiProperty({ example: "Password123!" })
   @IsString()
-  @MinLength(8, { message: 'La contraseña debe tener al menos 8 caracteres' })
+  @MinLength(8, { message: "La contraseña debe tener al menos 8 caracteres" })
   @MaxLength(100)
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
-    message: 'La contraseña debe contener al menos una mayúscula, una minúscula y un número',
+    message:
+      "La contraseña debe contener al menos una mayúscula, una minúscula y un número",
   })
   password: string;
 }
 
 export class LoginDto {
-  @ApiProperty({ example: 'juan@example.com' })
-  @IsEmail({}, { message: 'Email inválido' })
+  @ApiProperty({ example: "juan@example.com" })
+  @IsEmail({}, { message: "Email inválido" })
   email: string;
 
-  @ApiProperty({ example: 'Password123!' })
+  @ApiProperty({ example: "Password123!" })
   @IsString()
   password: string;
 }
@@ -49,8 +49,8 @@ export class RefreshTokenDto {
 }
 
 export class ForgotPasswordDto {
-  @ApiProperty({ example: 'juan@example.com' })
-  @IsEmail({}, { message: 'Email inválido' })
+  @ApiProperty({ example: "juan@example.com" })
+  @IsEmail({}, { message: "Email inválido" })
   email: string;
 }
 
@@ -59,12 +59,13 @@ export class ResetPasswordDto {
   @IsString()
   token: string;
 
-  @ApiProperty({ example: 'NewPassword123!' })
+  @ApiProperty({ example: "NewPassword123!" })
   @IsString()
-  @MinLength(8, { message: 'La contraseña debe tener al menos 8 caracteres' })
+  @MinLength(8, { message: "La contraseña debe tener al menos 8 caracteres" })
   @MaxLength(100)
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
-    message: 'La contraseña debe contener al menos una mayúscula, una minúscula y un número',
+    message:
+      "La contraseña debe contener al menos una mayúscula, una minúscula y un número",
   })
   newPassword: string;
 }
@@ -74,12 +75,13 @@ export class ChangePasswordDto {
   @IsString()
   currentPassword: string;
 
-  @ApiProperty({ example: 'NewPassword123!' })
+  @ApiProperty({ example: "NewPassword123!" })
   @IsString()
-  @MinLength(8, { message: 'La contraseña debe tener al menos 8 caracteres' })
+  @MinLength(8, { message: "La contraseña debe tener al menos 8 caracteres" })
   @MaxLength(100)
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
-    message: 'La contraseña debe contener al menos una mayúscula, una minúscula y un número',
+    message:
+      "La contraseña debe contener al menos una mayúscula, una minúscula y un número",
   })
   newPassword: string;
 }
@@ -89,14 +91,14 @@ export class AcceptInvitationDto {
   @IsString()
   token: string;
 
-  @ApiPropertyOptional({ description: 'Required if user is not registered' })
+  @ApiPropertyOptional({ description: "Required if user is not registered" })
   @IsOptional()
   @IsString()
   @MinLength(2)
   @MaxLength(255)
   fullName?: string;
 
-  @ApiPropertyOptional({ description: 'Required if user is not registered' })
+  @ApiPropertyOptional({ description: "Required if user is not registered" })
   @IsOptional()
   @IsString()
   @MinLength(8)
@@ -109,7 +111,9 @@ export class AuthResponseDto {
   @ApiProperty()
   accessToken: string;
 
-  @ApiPropertyOptional({ description: 'Deprecated: usar cookie httpOnly (cumpliros_refresh)' })
+  @ApiPropertyOptional({
+    description: "Deprecated: usar cookie httpOnly (cumpliros_refresh)",
+  })
   @IsOptional()
   @IsString()
   refreshToken?: string;

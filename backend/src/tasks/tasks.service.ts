@@ -1,8 +1,12 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { TaskStatus } from '@prisma/client';
-import { AuditService } from '../audit/audit.service';
-import { AuditActions } from '../audit/dto/audit.dto';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
+import { PrismaService } from "../common/prisma/prisma.service";
+import { Prisma, TaskStatus } from "@prisma/client";
+import { AuditService } from "../audit/audit.service";
+import { AuditActions } from "../audit/dto/audit.dto";
 import {
   CreateTaskDto,
   UpdateTaskDto,
@@ -10,8 +14,20 @@ import {
   UpdateTaskItemDto,
   TaskResponseDto,
   TaskItemResponseDto,
-} from './dto/task.dto';
-import { PaginationDto, createPaginatedResponse, PaginatedResponse } from '../common/dto/pagination.dto';
+} from "./dto/task.dto";
+import {
+  PaginationDto,
+  createPaginatedResponse,
+  PaginatedResponse,
+} from "../common/dto/pagination.dto";
+
+type TaskWithRelations = Prisma.TaskGetPayload<{
+  include: {
+    assignee: { select: { id: true; fullName: true; email: true } };
+    obligation: { select: { id: true; title: true } };
+    items: true;
+  };
+}>;
 
 @Injectable()
 export class TasksService {
@@ -26,7 +42,7 @@ export class TasksService {
     return Math.round((completed / items.length) * 100);
   }
 
-  private enrichTask(task: any): TaskResponseDto {
+  private enrichTask(task: TaskWithRelations): TaskResponseDto {
     return {
       ...task,
       assignedToUserId: task.assignedToUserId ?? undefined,
@@ -37,14 +53,20 @@ export class TasksService {
     };
   }
 
-  async create(organizationId: string, dto: CreateTaskDto, userId?: string): Promise<TaskResponseDto> {
+  async create(
+    organizationId: string,
+    dto: CreateTaskDto,
+    userId?: string,
+  ): Promise<TaskResponseDto> {
     // Verify obligation belongs to organization
     const obligation = await this.prisma.obligation.findFirst({
       where: { id: dto.obligationId, organizationId },
     });
 
     if (!obligation) {
-      throw new BadRequestException('Obligación no encontrada o no pertenece a esta organización');
+      throw new BadRequestException(
+        "Obligación no encontrada o no pertenece a esta organización",
+      );
     }
 
     // Verify assignee belongs to organization if provided
@@ -53,7 +75,9 @@ export class TasksService {
         where: { userId: dto.assignedToUserId, organizationId },
       });
       if (!membership) {
-        throw new BadRequestException('El usuario asignado no pertenece a esta organización');
+        throw new BadRequestException(
+          "El usuario asignado no pertenece a esta organización",
+        );
       }
     }
 
@@ -76,14 +100,14 @@ export class TasksService {
       include: {
         assignee: { select: { id: true, fullName: true, email: true } },
         obligation: { select: { id: true, title: true } },
-        items: { orderBy: { order: 'asc' } },
+        items: { orderBy: { order: "asc" } },
       },
     });
 
     await this.auditService.log(
       organizationId,
       AuditActions.TASK_CREATED,
-      'Task',
+      "Task",
       task.id,
       userId,
       {
@@ -105,7 +129,7 @@ export class TasksService {
       status?: TaskStatus;
     },
   ): Promise<PaginatedResponse<TaskResponseDto>> {
-    const where: any = {
+    const where: Prisma.TaskWhereInput = {
       obligation: { organizationId },
     };
 
@@ -128,7 +152,7 @@ export class TasksService {
         include: {
           assignee: { select: { id: true, fullName: true, email: true } },
           obligation: { select: { id: true, title: true } },
-          items: { orderBy: { order: 'asc' } },
+          items: { orderBy: { order: "asc" } },
         },
       }),
       this.prisma.task.count({ where }),
@@ -136,10 +160,18 @@ export class TasksService {
 
     const enrichedTasks = tasks.map((t) => this.enrichTask(t));
 
-    return createPaginatedResponse(enrichedTasks, total, pagination.page!, pagination.limit!);
+    return createPaginatedResponse(
+      enrichedTasks,
+      total,
+      pagination.page!,
+      pagination.limit!,
+    );
   }
 
-  async findOne(organizationId: string, taskId: string): Promise<TaskResponseDto> {
+  async findOne(
+    organizationId: string,
+    taskId: string,
+  ): Promise<TaskResponseDto> {
     const task = await this.prisma.task.findFirst({
       where: {
         id: taskId,
@@ -148,18 +180,23 @@ export class TasksService {
       include: {
         assignee: { select: { id: true, fullName: true, email: true } },
         obligation: { select: { id: true, title: true } },
-        items: { orderBy: { order: 'asc' } },
+        items: { orderBy: { order: "asc" } },
       },
     });
 
     if (!task) {
-      throw new NotFoundException('Tarea no encontrada');
+      throw new NotFoundException("Tarea no encontrada");
     }
 
     return this.enrichTask(task);
   }
 
-  async update(organizationId: string, taskId: string, dto: UpdateTaskDto, userId?: string): Promise<TaskResponseDto> {
+  async update(
+    organizationId: string,
+    taskId: string,
+    dto: UpdateTaskDto,
+    userId?: string,
+  ): Promise<TaskResponseDto> {
     const existing = await this.prisma.task.findFirst({
       where: {
         id: taskId,
@@ -168,7 +205,7 @@ export class TasksService {
     });
 
     if (!existing) {
-      throw new NotFoundException('Tarea no encontrada');
+      throw new NotFoundException("Tarea no encontrada");
     }
 
     // Verify assignee if being updated
@@ -177,7 +214,9 @@ export class TasksService {
         where: { userId: dto.assignedToUserId, organizationId },
       });
       if (!membership) {
-        throw new BadRequestException('El usuario asignado no pertenece a esta organización');
+        throw new BadRequestException(
+          "El usuario asignado no pertenece a esta organización",
+        );
       }
     }
 
@@ -187,16 +226,18 @@ export class TasksService {
       include: {
         assignee: { select: { id: true, fullName: true, email: true } },
         obligation: { select: { id: true, title: true } },
-        items: { orderBy: { order: 'asc' } },
+        items: { orderBy: { order: "asc" } },
       },
     });
 
     const action =
-      dto.status === TaskStatus.COMPLETED ? AuditActions.TASK_COMPLETED : AuditActions.TASK_UPDATED;
+      dto.status === TaskStatus.COMPLETED
+        ? AuditActions.TASK_COMPLETED
+        : AuditActions.TASK_UPDATED;
     await this.auditService.log(
       organizationId,
       action,
-      'Task',
+      "Task",
       taskId,
       userId,
       { changes: dto },
@@ -205,7 +246,11 @@ export class TasksService {
     return this.enrichTask(task);
   }
 
-  async delete(organizationId: string, taskId: string, userId?: string): Promise<void> {
+  async delete(
+    organizationId: string,
+    taskId: string,
+    userId?: string,
+  ): Promise<void> {
     const task = await this.prisma.task.findFirst({
       where: {
         id: taskId,
@@ -214,7 +259,7 @@ export class TasksService {
     });
 
     if (!task) {
-      throw new NotFoundException('Tarea no encontrada');
+      throw new NotFoundException("Tarea no encontrada");
     }
 
     await this.prisma.task.delete({
@@ -224,7 +269,7 @@ export class TasksService {
     await this.auditService.log(
       organizationId,
       AuditActions.TASK_DELETED,
-      'Task',
+      "Task",
       taskId,
       userId,
       { title: task.title, obligationId: task.obligationId },
@@ -247,10 +292,13 @@ export class TasksService {
     });
 
     if (!task) {
-      throw new NotFoundException('Tarea no encontrada');
+      throw new NotFoundException("Tarea no encontrada");
     }
 
-    const maxOrder = task.items.reduce((max, item) => Math.max(max, item.order), -1);
+    const maxOrder = task.items.reduce(
+      (max, item) => Math.max(max, item.order),
+      -1,
+    );
 
     const item = await this.prisma.taskItem.create({
       data: {
@@ -263,10 +311,10 @@ export class TasksService {
     await this.auditService.log(
       organizationId,
       AuditActions.TASK_UPDATED,
-      'Task',
+      "Task",
       taskId,
       userId,
-      { taskItem: { action: 'created', itemId: item.id } },
+      { taskItem: { action: "created", itemId: item.id } },
     );
 
     return item;
@@ -287,7 +335,7 @@ export class TasksService {
     });
 
     if (!task) {
-      throw new NotFoundException('Tarea no encontrada');
+      throw new NotFoundException("Tarea no encontrada");
     }
 
     const item = await this.prisma.taskItem.findFirst({
@@ -295,7 +343,7 @@ export class TasksService {
     });
 
     if (!item) {
-      throw new NotFoundException('Ítem no encontrado');
+      throw new NotFoundException("Ítem no encontrado");
     }
 
     const updated = await this.prisma.taskItem.update({
@@ -306,16 +354,21 @@ export class TasksService {
     await this.auditService.log(
       organizationId,
       AuditActions.TASK_UPDATED,
-      'Task',
+      "Task",
       taskId,
       userId,
-      { taskItem: { action: 'updated', itemId }, changes: dto },
+      { taskItem: { action: "updated", itemId }, changes: dto },
     );
 
     return updated;
   }
 
-  async deleteItem(organizationId: string, taskId: string, itemId: string, userId?: string): Promise<void> {
+  async deleteItem(
+    organizationId: string,
+    taskId: string,
+    itemId: string,
+    userId?: string,
+  ): Promise<void> {
     const task = await this.prisma.task.findFirst({
       where: {
         id: taskId,
@@ -324,7 +377,7 @@ export class TasksService {
     });
 
     if (!task) {
-      throw new NotFoundException('Tarea no encontrada');
+      throw new NotFoundException("Tarea no encontrada");
     }
 
     const item = await this.prisma.taskItem.findFirst({
@@ -332,7 +385,7 @@ export class TasksService {
     });
 
     if (!item) {
-      throw new NotFoundException('Ítem no encontrado');
+      throw new NotFoundException("Ítem no encontrado");
     }
 
     await this.prisma.taskItem.delete({
@@ -342,10 +395,10 @@ export class TasksService {
     await this.auditService.log(
       organizationId,
       AuditActions.TASK_UPDATED,
-      'Task',
+      "Task",
       taskId,
       userId,
-      { taskItem: { action: 'deleted', itemId } },
+      { taskItem: { action: "deleted", itemId } },
     );
   }
 
@@ -363,7 +416,7 @@ export class TasksService {
     });
 
     if (!task) {
-      throw new NotFoundException('Tarea no encontrada');
+      throw new NotFoundException("Tarea no encontrada");
     }
 
     const item = await this.prisma.taskItem.findFirst({
@@ -371,7 +424,7 @@ export class TasksService {
     });
 
     if (!item) {
-      throw new NotFoundException('Ítem no encontrado');
+      throw new NotFoundException("Ítem no encontrado");
     }
 
     const updated = await this.prisma.taskItem.update({
@@ -382,10 +435,10 @@ export class TasksService {
     await this.auditService.log(
       organizationId,
       AuditActions.TASK_UPDATED,
-      'Task',
+      "Task",
       taskId,
       userId,
-      { taskItem: { action: 'toggled', itemId, done: updated.done } },
+      { taskItem: { action: "toggled", itemId, done: updated.done } },
     );
 
     return updated;

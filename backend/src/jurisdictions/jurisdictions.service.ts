@@ -1,16 +1,25 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { PrismaService } from '../common/prisma/prisma.service';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from "@nestjs/common";
+import { Jurisdiction } from "@prisma/client";
+import { PrismaService } from "../common/prisma/prisma.service";
 import {
   CreateJurisdictionDto,
   UpdateJurisdictionDto,
   JurisdictionResponseDto,
   JurisdictionSummaryDto,
-} from './dto/jurisdiction.dto';
-import { PaginationDto, createPaginatedResponse, PaginatedResponse } from '../common/dto/pagination.dto';
+} from "./dto/jurisdiction.dto";
+import {
+  PaginationDto,
+  createPaginatedResponse,
+  PaginatedResponse,
+} from "../common/dto/pagination.dto";
 
 // ID fijo de Rosario para compatibilidad hacia atras
-export const ROSARIO_JURISDICTION_ID = '00000000-0000-0000-0000-000000000001';
-export const ROSARIO_JURISDICTION_CODE = 'ar-sf-rosario';
+export const ROSARIO_JURISDICTION_ID = "00000000-0000-0000-0000-000000000001";
+export const ROSARIO_JURISDICTION_CODE = "ar-sf-rosario";
 
 @Injectable()
 export class JurisdictionsService {
@@ -23,14 +32,16 @@ export class JurisdictionsService {
     });
 
     if (existing) {
-      throw new ConflictException(`Ya existe una jurisdiccion con el codigo: ${dto.code}`);
+      throw new ConflictException(
+        `Ya existe una jurisdiccion con el codigo: ${dto.code}`,
+      );
     }
 
     const jurisdiction = await this.prisma.jurisdiction.create({
       data: {
         code: dto.code,
         name: dto.name,
-        country: dto.country || 'AR',
+        country: dto.country || "AR",
         province: dto.province,
         isActive: true,
       },
@@ -39,7 +50,10 @@ export class JurisdictionsService {
     return this.toResponseDto(jurisdiction);
   }
 
-  async findAll(pagination: PaginationDto, activeOnly = true): Promise<PaginatedResponse<JurisdictionResponseDto>> {
+  async findAll(
+    pagination: PaginationDto,
+    activeOnly = true,
+  ): Promise<PaginatedResponse<JurisdictionResponseDto>> {
     const { page = 1, limit = 20 } = pagination;
     const skip = (page - 1) * limit;
 
@@ -50,7 +64,7 @@ export class JurisdictionsService {
         where,
         skip,
         take: limit,
-        orderBy: { name: 'asc' },
+        orderBy: { name: "asc" },
         include: {
           _count: {
             select: {
@@ -70,7 +84,7 @@ export class JurisdictionsService {
   async findAllActive(): Promise<JurisdictionSummaryDto[]> {
     const jurisdictions = await this.prisma.jurisdiction.findMany({
       where: { isActive: true },
-      orderBy: { name: 'asc' },
+      orderBy: { name: "asc" },
       select: {
         id: true,
         code: true,
@@ -116,13 +130,18 @@ export class JurisdictionsService {
     });
 
     if (!jurisdiction) {
-      throw new NotFoundException(`Jurisdiccion no encontrada con codigo: ${code}`);
+      throw new NotFoundException(
+        `Jurisdiccion no encontrada con codigo: ${code}`,
+      );
     }
 
     return this.toResponseDto(jurisdiction, jurisdiction._count);
   }
 
-  async update(id: string, dto: UpdateJurisdictionDto): Promise<JurisdictionResponseDto> {
+  async update(
+    id: string,
+    dto: UpdateJurisdictionDto,
+  ): Promise<JurisdictionResponseDto> {
     // Verificar que existe
     await this.findOne(id);
 
@@ -136,7 +155,9 @@ export class JurisdictionsService {
       });
 
       if (existing) {
-        throw new ConflictException(`Ya existe una jurisdiccion con el codigo: ${dto.code}`);
+        throw new ConflictException(
+          `Ya existe una jurisdiccion con el codigo: ${dto.code}`,
+        );
       }
     }
 
@@ -196,9 +217,9 @@ export class JurisdictionsService {
         data: {
           id: ROSARIO_JURISDICTION_ID,
           code: ROSARIO_JURISDICTION_CODE,
-          name: 'Rosario',
-          country: 'AR',
-          province: 'Santa Fe',
+          name: "Rosario",
+          country: "AR",
+          province: "Santa Fe",
           isActive: true,
         },
       });
@@ -208,7 +229,7 @@ export class JurisdictionsService {
   }
 
   private toResponseDto(
-    jurisdiction: any,
+    jurisdiction: Jurisdiction,
     counts?: { obligationTemplates: number; organizations: number },
   ): JurisdictionResponseDto {
     return {

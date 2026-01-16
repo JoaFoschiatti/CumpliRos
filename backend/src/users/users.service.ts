@@ -1,6 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { UpdateUserDto, UserResponseDto, UserWithOrganizationsDto } from './dto/user.dto';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { PrismaService } from "../common/prisma/prisma.service";
+import {
+  UpdateUserDto,
+  UserResponseDto,
+  UserWithOrganizationsDto,
+} from "./dto/user.dto";
 
 @Injectable()
 export class UsersService {
@@ -25,7 +29,7 @@ export class UsersService {
     });
 
     if (!user) {
-      throw new NotFoundException('Usuario no encontrado');
+      throw new NotFoundException("Usuario no encontrado");
     }
 
     return {
@@ -49,7 +53,7 @@ export class UsersService {
     });
 
     if (!user) {
-      throw new NotFoundException('Usuario no encontrado');
+      throw new NotFoundException("Usuario no encontrado");
     }
 
     const updated = await this.prisma.user.update({

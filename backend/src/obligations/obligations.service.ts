@@ -2,12 +2,16 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  ForbiddenException,
-} from '@nestjs/common';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { AuditService } from '../audit/audit.service';
-import { AuditActions } from '../audit/dto/audit.dto';
-import { ObligationStatus, Obligation, Organization } from '@prisma/client';
+} from "@nestjs/common";
+import { PrismaService } from "../common/prisma/prisma.service";
+import { AuditService } from "../audit/audit.service";
+import { AuditActions } from "../audit/dto/audit.dto";
+import {
+  Prisma,
+  ObligationStatus,
+  Obligation,
+  Organization,
+} from "@prisma/client";
 import {
   CreateObligationDto,
   UpdateObligationDto,
@@ -15,8 +19,12 @@ import {
   ObligationResponseDto,
   ObligationDashboardDto,
   TrafficLight,
-} from './dto/obligation.dto';
-import { PaginationDto, createPaginatedResponse, PaginatedResponse } from '../common/dto/pagination.dto';
+} from "./dto/obligation.dto";
+import {
+  PaginationDto,
+  createPaginatedResponse,
+  PaginatedResponse,
+} from "../common/dto/pagination.dto";
 
 @Injectable()
 export class ObligationsService {
@@ -25,18 +33,24 @@ export class ObligationsService {
     private auditService: AuditService,
   ) {}
 
+  // Compute traffic light state based on due date, status, and org thresholds.
   calculateTrafficLight(
     dueDate: Date,
     status: ObligationStatus,
     thresholdYellow: number,
     thresholdRed: number,
   ): { trafficLight: TrafficLight; daysUntilDue: number } {
-    if (status === ObligationStatus.COMPLETED || status === ObligationStatus.NOT_APPLICABLE) {
+    if (
+      status === ObligationStatus.COMPLETED ||
+      status === ObligationStatus.NOT_APPLICABLE
+    ) {
       return { trafficLight: TrafficLight.GREEN, daysUntilDue: 0 };
     }
 
     if (status === ObligationStatus.OVERDUE) {
-      const daysUntilDue = Math.floor((dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      const daysUntilDue = Math.floor(
+        (dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+      );
       return { trafficLight: TrafficLight.RED, daysUntilDue };
     }
 
@@ -45,7 +59,9 @@ export class ObligationsService {
     const due = new Date(dueDate);
     due.setHours(0, 0, 0, 0);
 
-    const daysUntilDue = Math.floor((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const daysUntilDue = Math.floor(
+      (due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+    );
 
     if (daysUntilDue < 0) {
       return { trafficLight: TrafficLight.RED, daysUntilDue };
@@ -63,7 +79,12 @@ export class ObligationsService {
   }
 
   private enrichWithTrafficLight(
-    obligation: Obligation & { organization?: Organization; location?: { id: string; name: string } | null; owner?: { id: string; fullName: string; email: string } | null; _count?: { documents: number; tasks: number; reviews: number } },
+    obligation: Obligation & {
+      organization?: Organization;
+      location?: { id: string; name: string } | null;
+      owner?: { id: string; fullName: string; email: string } | null;
+      _count?: { documents: number; tasks: number; reviews: number };
+    },
     organization: Organization,
   ): ObligationResponseDto {
     const { trafficLight, daysUntilDue } = this.calculateTrafficLight(
@@ -106,7 +127,9 @@ export class ObligationsService {
         where: { id: dto.locationId, organizationId, active: true },
       });
       if (!location) {
-        throw new BadRequestException('Local no encontrado o no pertenece a esta organización');
+        throw new BadRequestException(
+          "Local no encontrado o no pertenece a esta organización",
+        );
       }
     }
 
@@ -115,7 +138,9 @@ export class ObligationsService {
       where: { userId: dto.ownerUserId, organizationId },
     });
     if (!ownerMembership) {
-      throw new BadRequestException('El usuario responsable no pertenece a esta organización');
+      throw new BadRequestException(
+        "El usuario responsable no pertenece a esta organización",
+      );
     }
 
     const organization = await this.prisma.organization.findUnique({
@@ -145,7 +170,7 @@ export class ObligationsService {
     await this.auditService.log(
       organizationId,
       AuditActions.OBLIGATION_CREATED,
-      'Obligation',
+      "Obligation",
       obligation.id,
       userId,
       {
@@ -170,10 +195,10 @@ export class ObligationsService {
     });
 
     if (!organization) {
-      throw new NotFoundException('Organización no encontrada');
+      throw new NotFoundException("Organización no encontrada");
     }
 
-    const where: any = { organizationId };
+    const where: Prisma.ObligationWhereInput = { organizationId };
 
     if (filters.status) {
       where.status = filters.status;
@@ -212,17 +237,29 @@ export class ObligationsService {
       this.prisma.obligation.count({ where }),
     ]);
 
-    let enrichedObligations = obligations.map((o) => this.enrichWithTrafficLight(o, organization));
+    let enrichedObligations = obligations.map((o) =>
+      this.enrichWithTrafficLight(o, organization),
+    );
 
     // Filter by traffic light if specified
     if (filters.trafficLight) {
-      enrichedObligations = enrichedObligations.filter((o) => o.trafficLight === filters.trafficLight);
+      enrichedObligations = enrichedObligations.filter(
+        (o) => o.trafficLight === filters.trafficLight,
+      );
     }
 
-    return createPaginatedResponse(enrichedObligations, total, pagination.page!, pagination.limit!);
+    return createPaginatedResponse(
+      enrichedObligations,
+      total,
+      pagination.page!,
+      pagination.limit!,
+    );
   }
 
-  async findOne(organizationId: string, obligationId: string): Promise<ObligationResponseDto> {
+  async findOne(
+    organizationId: string,
+    obligationId: string,
+  ): Promise<ObligationResponseDto> {
     const organization = await this.prisma.organization.findUnique({
       where: { id: organizationId },
     });
@@ -237,7 +274,7 @@ export class ObligationsService {
     });
 
     if (!obligation) {
-      throw new NotFoundException('Obligación no encontrada');
+      throw new NotFoundException("Obligación no encontrada");
     }
 
     return this.enrichWithTrafficLight(obligation, organization!);
@@ -258,7 +295,7 @@ export class ObligationsService {
     });
 
     if (!existing) {
-      throw new NotFoundException('Obligación no encontrada');
+      throw new NotFoundException("Obligación no encontrada");
     }
 
     // Validate location if being updated
@@ -267,7 +304,9 @@ export class ObligationsService {
         where: { id: dto.locationId, organizationId, active: true },
       });
       if (!location) {
-        throw new BadRequestException('Local no encontrado o no pertenece a esta organización');
+        throw new BadRequestException(
+          "Local no encontrado o no pertenece a esta organización",
+        );
       }
     }
 
@@ -277,7 +316,9 @@ export class ObligationsService {
         where: { userId: dto.ownerUserId, organizationId },
       });
       if (!ownerMembership) {
-        throw new BadRequestException('El usuario responsable no pertenece a esta organización');
+        throw new BadRequestException(
+          "El usuario responsable no pertenece a esta organización",
+        );
       }
     }
 
@@ -294,7 +335,7 @@ export class ObligationsService {
     await this.auditService.log(
       organizationId,
       AuditActions.OBLIGATION_UPDATED,
-      'Obligation',
+      "Obligation",
       obligationId,
       userId,
       { changes: dto },
@@ -317,15 +358,15 @@ export class ObligationsService {
       where: { id: obligationId, organizationId },
       include: {
         documents: true,
-        reviews: { where: { status: 'APPROVED' } },
+        reviews: { where: { status: "APPROVED" } },
       },
     });
 
     if (!obligation) {
-      throw new NotFoundException('Obligación no encontrada');
+      throw new NotFoundException("Obligación no encontrada");
     }
 
-    // Validate status transition to COMPLETED
+    // Enforce business rules before closing an obligation.
     if (status === ObligationStatus.COMPLETED) {
       // Check required evidence count
       if (obligation.requiredEvidenceCount > 0) {
@@ -340,7 +381,7 @@ export class ObligationsService {
       if (obligation.requiresReview) {
         if (obligation.reviews.length === 0) {
           throw new BadRequestException(
-            'Esta obligación requiere aprobación antes de poder ser completada',
+            "Esta obligación requiere aprobación antes de poder ser completada",
           );
         }
       }
@@ -359,7 +400,7 @@ export class ObligationsService {
     await this.auditService.log(
       organizationId,
       AuditActions.OBLIGATION_STATUS_CHANGED,
-      'Obligation',
+      "Obligation",
       obligationId,
       userId,
       { from: obligation.status, to: status },
@@ -368,13 +409,17 @@ export class ObligationsService {
     return this.enrichWithTrafficLight(updated, organization!);
   }
 
-  async delete(organizationId: string, obligationId: string, userId?: string): Promise<void> {
+  async delete(
+    organizationId: string,
+    obligationId: string,
+    userId?: string,
+  ): Promise<void> {
     const obligation = await this.prisma.obligation.findFirst({
       where: { id: obligationId, organizationId },
     });
 
     if (!obligation) {
-      throw new NotFoundException('Obligación no encontrada');
+      throw new NotFoundException("Obligación no encontrada");
     }
 
     await this.prisma.obligation.delete({
@@ -384,7 +429,7 @@ export class ObligationsService {
     await this.auditService.log(
       organizationId,
       AuditActions.OBLIGATION_DELETED,
-      'Obligation',
+      "Obligation",
       obligationId,
       userId,
       { title: obligation.title },
@@ -397,7 +442,7 @@ export class ObligationsService {
     });
 
     if (!organization) {
-      throw new NotFoundException('Organización no encontrada');
+      throw new NotFoundException("Organización no encontrada");
     }
 
     const now = new Date();
@@ -413,14 +458,32 @@ export class ObligationsService {
       },
     });
 
-    const enriched = obligations.map((o) => this.enrichWithTrafficLight(o, organization));
+    const enriched = obligations.map((o) =>
+      this.enrichWithTrafficLight(o, organization),
+    );
 
     const total = enriched.length;
-    const completed = enriched.filter((o) => o.status === ObligationStatus.COMPLETED).length;
-    const overdue = enriched.filter((o) => o.status === ObligationStatus.OVERDUE).length;
-    const red = enriched.filter((o) => o.trafficLight === TrafficLight.RED && o.status !== ObligationStatus.COMPLETED).length;
-    const yellow = enriched.filter((o) => o.trafficLight === TrafficLight.YELLOW && o.status !== ObligationStatus.COMPLETED).length;
-    const green = enriched.filter((o) => o.trafficLight === TrafficLight.GREEN && o.status !== ObligationStatus.COMPLETED).length;
+    const completed = enriched.filter(
+      (o) => o.status === ObligationStatus.COMPLETED,
+    ).length;
+    const overdue = enriched.filter(
+      (o) => o.status === ObligationStatus.OVERDUE,
+    ).length;
+    const red = enriched.filter(
+      (o) =>
+        o.trafficLight === TrafficLight.RED &&
+        o.status !== ObligationStatus.COMPLETED,
+    ).length;
+    const yellow = enriched.filter(
+      (o) =>
+        o.trafficLight === TrafficLight.YELLOW &&
+        o.status !== ObligationStatus.COMPLETED,
+    ).length;
+    const green = enriched.filter(
+      (o) =>
+        o.trafficLight === TrafficLight.GREEN &&
+        o.status !== ObligationStatus.COMPLETED,
+    ).length;
 
     const upcoming7Days = enriched
       .filter(
@@ -433,7 +496,9 @@ export class ObligationsService {
       .sort((a, b) => a.daysUntilDue - b.daysUntilDue);
 
     const overdueList = enriched
-      .filter((o) => o.status === ObligationStatus.OVERDUE || o.daysUntilDue < 0)
+      .filter(
+        (o) => o.status === ObligationStatus.OVERDUE || o.daysUntilDue < 0,
+      )
       .sort((a, b) => a.daysUntilDue - b.daysUntilDue);
 
     return {
@@ -458,7 +523,7 @@ export class ObligationsService {
     });
 
     if (!organization) {
-      throw new NotFoundException('Organización no encontrada');
+      throw new NotFoundException("Organización no encontrada");
     }
 
     const obligations = await this.prisma.obligation.findMany({
@@ -474,7 +539,7 @@ export class ObligationsService {
         owner: { select: { id: true, fullName: true, email: true } },
         _count: { select: { documents: true, tasks: true, reviews: true } },
       },
-      orderBy: { dueDate: 'asc' },
+      orderBy: { dueDate: "asc" },
     });
 
     return obligations.map((o) => this.enrichWithTrafficLight(o, organization));
@@ -487,7 +552,9 @@ export class ObligationsService {
 
     const result = await this.prisma.obligation.updateMany({
       where: {
-        status: { in: [ObligationStatus.PENDING, ObligationStatus.IN_PROGRESS] },
+        status: {
+          in: [ObligationStatus.PENDING, ObligationStatus.IN_PROGRESS],
+        },
         dueDate: { lt: now },
       },
       data: { status: ObligationStatus.OVERDUE },

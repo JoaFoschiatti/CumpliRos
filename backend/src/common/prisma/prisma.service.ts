@@ -1,11 +1,17 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
+import { PrismaClient } from "@prisma/client";
 
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+export class PrismaService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
+{
   constructor() {
     super({
-      log: process.env.NODE_ENV === 'development' ? ['query', 'warn', 'error'] : ['error'],
+      log:
+        process.env.NODE_ENV === "development"
+          ? ["query", "warn", "error"]
+          : ["error"],
     });
   }
 
@@ -18,8 +24,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   async cleanDatabase() {
-    if (process.env.NODE_ENV !== 'test') {
-      throw new Error('cleanDatabase can only be used in test environment');
+    if (process.env.NODE_ENV !== "test") {
+      throw new Error("cleanDatabase can only be used in test environment");
     }
 
     const tablenames = await this.$queryRaw<
@@ -28,9 +34,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
     const tables = tablenames
       .map(({ tablename }) => tablename)
-      .filter((name) => name !== '_prisma_migrations')
+      .filter((name) => name !== "_prisma_migrations")
       .map((name) => `"public"."${name}"`)
-      .join(', ');
+      .join(", ");
 
     if (tables.length > 0) {
       await this.$executeRawUnsafe(`TRUNCATE TABLE ${tables} CASCADE;`);

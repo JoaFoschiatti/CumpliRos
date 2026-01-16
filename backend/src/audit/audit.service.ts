@@ -1,7 +1,24 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { AuditFilterDto, AuditEventResponseDto, AuditAction } from './dto/audit.dto';
-import { PaginationDto, createPaginatedResponse, PaginatedResponse } from '../common/dto/pagination.dto';
+import { Injectable } from "@nestjs/common";
+import { Prisma, AuditEvent } from "@prisma/client";
+import { PrismaService } from "../common/prisma/prisma.service";
+import {
+  AuditFilterDto,
+  AuditEventResponseDto,
+  AuditAction,
+} from "./dto/audit.dto";
+import {
+  PaginationDto,
+  createPaginatedResponse,
+  PaginatedResponse,
+} from "../common/dto/pagination.dto";
+
+type AuditEventWithUser = Prisma.AuditEventGetPayload<{
+  include: {
+    user: {
+      select: { id: true; fullName: true; email: true };
+    };
+  };
+}>;
 
 @Injectable()
 export class AuditService {
@@ -13,7 +30,7 @@ export class AuditService {
     entityType: string,
     entityId?: string,
     userId?: string,
-    metadata?: Record<string, any>,
+    metadata?: Record<string, unknown>,
     ipAddress?: string,
     userAgent?: string,
   ): Promise<void> {
@@ -36,7 +53,7 @@ export class AuditService {
     pagination: PaginationDto,
     filters: AuditFilterDto,
   ): Promise<PaginatedResponse<AuditEventResponseDto>> {
-    const where: any = { organizationId };
+    const where: Prisma.AuditEventWhereInput = { organizationId };
 
     if (filters.action) {
       where.action = { contains: filters.action };
@@ -65,7 +82,7 @@ export class AuditService {
         where,
         skip: pagination.skip,
         take: pagination.take,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         include: {
           user: { select: { id: true, fullName: true, email: true } },
         },
@@ -73,9 +90,14 @@ export class AuditService {
       this.prisma.auditEvent.count({ where }),
     ]);
 
-    const enrichedEvents = events.map((event: any) => this.enrichEvent(event));
+    const enrichedEvents = events.map((event) => this.enrichEvent(event));
 
-    return createPaginatedResponse(enrichedEvents, total, pagination.page!, pagination.limit!);
+    return createPaginatedResponse(
+      enrichedEvents,
+      total,
+      pagination.page!,
+      pagination.limit!,
+    );
   }
 
   async findByEntity(
@@ -91,7 +113,7 @@ export class AuditService {
         where,
         skip: pagination.skip,
         take: pagination.take,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         include: {
           user: { select: { id: true, fullName: true, email: true } },
         },
@@ -99,12 +121,19 @@ export class AuditService {
       this.prisma.auditEvent.count({ where }),
     ]);
 
-    const enrichedEvents = events.map((event: any) => this.enrichEvent(event));
+    const enrichedEvents = events.map((event) => this.enrichEvent(event));
 
-    return createPaginatedResponse(enrichedEvents, total, pagination.page!, pagination.limit!);
+    return createPaginatedResponse(
+      enrichedEvents,
+      total,
+      pagination.page!,
+      pagination.limit!,
+    );
   }
 
-  private enrichEvent(event: any): AuditEventResponseDto {
+  private enrichEvent(
+    event: AuditEventWithUser | AuditEvent,
+  ): AuditEventResponseDto {
     return {
       id: event.id,
       organizationId: event.organizationId,

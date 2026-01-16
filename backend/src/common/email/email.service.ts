@@ -1,18 +1,18 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Resend } from 'resend';
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { Resend } from "resend";
 
 function escapeHtml(value: string): string {
   return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function safeText(value: unknown): string {
-  return escapeHtml(String(value ?? ''));
+  return escapeHtml(String(value ?? ""));
 }
 
 export interface EmailOptions {
@@ -30,17 +30,21 @@ export class EmailService {
   private isEnabled: boolean;
 
   constructor(private configService: ConfigService) {
-    const apiKey = this.configService.get<string>('RESEND_API_KEY');
-    this.from = this.configService.get<string>('EMAIL_FROM') || 'CumpliRos <noreply@cumpliros.com>';
+    const apiKey = this.configService.get<string>("RESEND_API_KEY");
+    this.from =
+      this.configService.get<string>("EMAIL_FROM") ||
+      "CumpliRos <noreply@cumpliros.com>";
 
     // Only initialize Resend if API key is configured
-    this.isEnabled = !!apiKey && !apiKey.startsWith('re_xxxx');
+    this.isEnabled = !!apiKey && !apiKey.startsWith("re_xxxx");
 
     if (this.isEnabled) {
       this.resend = new Resend(apiKey);
-      this.logger.log('Email service initialized with Resend');
+      this.logger.log("Email service initialized with Resend");
     } else {
-      this.logger.warn('Email service running in development mode (emails will be logged only)');
+      this.logger.warn(
+        "Email service running in development mode (emails will be logged only)",
+      );
     }
   }
 
@@ -50,13 +54,15 @@ export class EmailService {
 
     // Development mode - just log the email
     if (!this.isEnabled || !this.resend) {
-      this.logger.log('========================================');
-      this.logger.log('[DEV EMAIL] Simulated email send:');
-      this.logger.log(`  To: ${recipients.join(', ')}`);
+      this.logger.log("========================================");
+      this.logger.log("[DEV EMAIL] Simulated email send:");
+      this.logger.log(`  To: ${recipients.join(", ")}`);
       this.logger.log(`  From: ${this.from}`);
       this.logger.log(`  Subject: ${subject}`);
-      this.logger.log(`  Body: [omitted] (${text ? 'text' : 'html'} length=${(text || html || '').length})`);
-      this.logger.log('========================================');
+      this.logger.log(
+        `  Body: [omitted] (${text ? "text" : "html"} length=${(text || html || "").length})`,
+      );
+      this.logger.log("========================================");
       return true;
     }
 
@@ -67,13 +73,20 @@ export class EmailService {
     };
 
     try {
-      let sendResult: { data: { id?: string } | null; error: { message: string } | null };
+      let sendResult: {
+        data: { id?: string } | null;
+        error: { message: string } | null;
+      };
       if (html) {
-        sendResult = await this.resend.emails.send({ ...basePayload, html, ...(text ? { text } : {}) });
+        sendResult = await this.resend.emails.send({
+          ...basePayload,
+          html,
+          ...(text ? { text } : {}),
+        });
       } else if (text) {
         sendResult = await this.resend.emails.send({ ...basePayload, text });
       } else {
-        this.logger.error('Email payload missing html/text content');
+        this.logger.error("Email payload missing html/text content");
         return false;
       }
 
@@ -84,10 +97,15 @@ export class EmailService {
         return false;
       }
 
-      this.logger.log(`Email sent successfully: ${data?.id} to ${recipients.join(', ')}`);
+      this.logger.log(
+        `Email sent successfully: ${data?.id} to ${recipients.join(", ")}`,
+      );
       return true;
-    } catch (error: any) {
-      this.logger.error(`Error sending email: ${error.message}`, error.stack);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Error sending email: ${errorMessage}`, errorStack);
       return false;
     }
   }
@@ -102,13 +120,17 @@ export class EmailService {
     obligations: Array<{ title: string; daysUntilDue: number }>,
     urgentCount: number,
   ): Promise<boolean> {
-    const subject = urgentCount > 0
-      ? `[URGENTE] ${urgentCount} obligaciones próximas a vencer - ${organizationName}`
-      : `${obligations.length} obligaciones próximas a vencer - ${organizationName}`;
+    const subject =
+      urgentCount > 0
+        ? `[URGENTE] ${urgentCount} obligaciones próximas a vencer - ${organizationName}`
+        : `${obligations.length} obligaciones próximas a vencer - ${organizationName}`;
 
     const obligationsList = obligations
-      .map((o) => `<li><strong>${safeText(o.title)}</strong> - vence en ${o.daysUntilDue} días</li>`)
-      .join('\n');
+      .map(
+        (o) =>
+          `<li><strong>${safeText(o.title)}</strong> - vence en ${o.daysUntilDue} días</li>`,
+      )
+      .join("\n");
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -129,7 +151,7 @@ export class EmailService {
       </div>
     `;
 
-    const text = `Hola ${recipientName},\n\nTienes ${obligations.length} obligación(es) próxima(s) a vencer en ${organizationName}:\n\n${obligations.map((o) => `- ${o.title} (vence en ${o.daysUntilDue} días)`).join('\n')}\n\nPor favor, revisa el panel de cumplimiento para más detalles.\n\nSaludos,\nCumpliRos`;
+    const text = `Hola ${recipientName},\n\nTienes ${obligations.length} obligación(es) próxima(s) a vencer en ${organizationName}:\n\n${obligations.map((o) => `- ${o.title} (vence en ${o.daysUntilDue} días)`).join("\n")}\n\nPor favor, revisa el panel de cumplimiento para más detalles.\n\nSaludos,\nCumpliRos`;
 
     return this.sendEmail({ to, subject, html, text });
   }
@@ -145,8 +167,11 @@ export class EmailService {
     const subject = `[VENCIDO] ${obligations.length} obligaciones vencidas - ${organizationName}`;
 
     const obligationsList = obligations
-      .map((o) => `<li><strong>${safeText(o.title)}</strong> - responsable: ${safeText(o.ownerName)}</li>`)
-      .join('\n');
+      .map(
+        (o) =>
+          `<li><strong>${safeText(o.title)}</strong> - responsable: ${safeText(o.ownerName)}</li>`,
+      )
+      .join("\n");
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -167,7 +192,7 @@ export class EmailService {
       </div>
     `;
 
-    const text = `Alerta: Obligaciones Vencidas\n\nHay ${obligations.length} obligación(es) vencida(s) en ${organizationName}:\n\n${obligations.map((o) => `- ${o.title} (responsable: ${o.ownerName})`).join('\n')}\n\nPor favor, tome acción inmediata.\n\nSaludos,\nCumpliRos`;
+    const text = `Alerta: Obligaciones Vencidas\n\nHay ${obligations.length} obligación(es) vencida(s) en ${organizationName}:\n\n${obligations.map((o) => `- ${o.title} (responsable: ${o.ownerName})`).join("\n")}\n\nPor favor, tome acción inmediata.\n\nSaludos,\nCumpliRos`;
 
     return this.sendEmail({ to, subject, html, text });
   }
@@ -261,12 +286,12 @@ export class EmailService {
     let inviteUrl: string;
     try {
       const parsed = new URL(baseUrl);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        throw new Error('Invalid baseUrl protocol');
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        throw new Error("Invalid baseUrl protocol");
       }
       const origin = parsed.origin;
-      const url = new URL('/auth/accept-invitation', origin);
-      url.searchParams.set('token', inviteToken);
+      const url = new URL("/auth/accept-invitation", origin);
+      url.searchParams.set("token", inviteToken);
       inviteUrl = url.toString();
     } catch {
       inviteUrl = `http://localhost:3000/auth/accept-invitation?token=${encodeURIComponent(inviteToken)}`;
@@ -274,10 +299,10 @@ export class EmailService {
     const subject = `Invitación a ${organizationName} - CumpliRos`;
 
     const roleLabels: Record<string, string> = {
-      OWNER: 'Propietario',
-      ADMIN: 'Administrador',
-      ACCOUNTANT: 'Contador',
-      MANAGER: 'Encargado',
+      OWNER: "Propietario",
+      ADMIN: "Administrador",
+      ACCOUNTANT: "Contador",
+      MANAGER: "Encargado",
     };
 
     const roleLabel = roleLabels[role] || role;
@@ -312,6 +337,44 @@ export class EmailService {
     `;
 
     const text = `Has sido invitado a CumpliRos\n\n${inviterName} te ha invitado a unirte a ${organizationName} como ${roleLabel}.\n\nPara aceptar la invitación, visita: ${inviteUrl}\n\nEsta invitación expira en 7 días.\n\nSaludos,\nCumpliRos`;
+
+    return this.sendEmail({ to, subject, html, text });
+  }
+
+  /**
+   * Send a password reset email
+   */
+  async sendPasswordResetEmail(
+    to: string,
+    recipientName: string,
+    resetUrl: string,
+  ): Promise<boolean> {
+    const subject = "Restablecer contraseña - CumpliRos";
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #1a1a1a;">Hola ${safeText(recipientName)},</h2>
+
+        <p>Recibimos una solicitud para restablecer tu contraseña. Si no fuiste vos, podés ignorar este email.</p>
+
+        <p>
+          <a href="${safeText(resetUrl)}" style="background: #2563eb; color: #fff; padding: 10px 16px; text-decoration: none; border-radius: 6px;">
+            Restablecer contraseña
+          </a>
+        </p>
+
+        <p style="color: #666; font-size: 14px; margin-top: 30px;">
+          Este enlace expira en 1 hora.
+        </p>
+
+        <p style="color: #666; font-size: 14px;">
+          Saludos,<br>
+          <strong>CumpliRos</strong>
+        </p>
+      </div>
+    `;
+
+    const text = `Hola ${recipientName},\n\nRecibimos una solicitud para restablecer tu contraseña. Si no fuiste vos, podés ignorar este email.\n\nRestablecer contraseña: ${resetUrl}\n\nEste enlace expira en 1 hora.\n\nSaludos,\nCumpliRos`;
 
     return this.sendEmail({ to, subject, html, text });
   }

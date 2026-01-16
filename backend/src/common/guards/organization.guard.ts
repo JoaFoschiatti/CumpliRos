@@ -1,6 +1,11 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { AuthenticatedRequest } from '../interfaces/request.interface';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+} from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import { AuthenticatedRequest } from "../interfaces/request.interface";
 
 @Injectable()
 export class OrganizationGuard implements CanActivate {
@@ -21,7 +26,7 @@ export class OrganizationGuard implements CanActivate {
     }
 
     if (!user) {
-      throw new ForbiddenException('Usuario no autenticado');
+      throw new ForbiddenException("Usuario no autenticado");
     }
 
     // Check if user has access to this organization
@@ -40,14 +45,14 @@ export class OrganizationGuard implements CanActivate {
     });
 
     if (!userOrg) {
-      throw new ForbiddenException('No tienes acceso a esta organización');
+      throw new ForbiddenException("No tienes acceso a esta organización");
     }
 
     if (!userOrg.organization.active) {
-      throw new ForbiddenException('La organización está desactivada');
+      throw new ForbiddenException("La organización está desactivada");
     }
 
-    // Attach organization context to request
+    // Attach org context for downstream RBAC checks.
     request.organization = {
       organizationId,
       role: userOrg.role,

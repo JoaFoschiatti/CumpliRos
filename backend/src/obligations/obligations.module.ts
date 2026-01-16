@@ -1,6 +1,6 @@
-import { Module } from '@nestjs/common';
-import { ObligationsController } from './obligations.controller';
-import { ObligationsService } from './obligations.service';
+import { Module } from "@nestjs/common";
+import { ObligationsController } from "./obligations.controller";
+import { ObligationsService } from "./obligations.service";
 
 @Module({
   controllers: [ObligationsController],

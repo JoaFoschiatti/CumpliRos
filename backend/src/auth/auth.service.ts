@@ -4,16 +4,17 @@ import {
   ConflictException,
   BadRequestException,
   NotFoundException,
-} from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
-import * as argon2 from 'argon2';
-import { v4 as uuidv4 } from 'uuid';
-import { createHash } from 'crypto';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { JwtPayload } from '../common/interfaces/request.interface';
-import { AuditService } from '../audit/audit.service';
-import { AuditActions } from '../audit/dto/audit.dto';
+} from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
+import { ConfigService } from "@nestjs/config";
+import * as argon2 from "argon2";
+import { v4 as uuidv4 } from "uuid";
+import { createHash, randomBytes } from "crypto";
+import { PrismaService } from "../common/prisma/prisma.service";
+import { JwtPayload } from "../common/interfaces/request.interface";
+import { AuditService } from "../audit/audit.service";
+import { AuditActions } from "../audit/dto/audit.dto";
+import { EmailService } from "../common/email/email.service";
 import {
   RegisterDto,
   LoginDto,
@@ -21,7 +22,9 @@ import {
   ChangePasswordDto,
   AcceptInvitationDto,
   UserProfileDto,
-} from './dto/auth.dto';
+  ForgotPasswordDto,
+  ResetPasswordDto,
+} from "./dto/auth.dto";
 
 @Injectable()
 export class AuthService {
@@ -30,11 +33,24 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private auditService: AuditService,
+    private emailService: EmailService,
   ) {}
 
   private hashRefreshToken(refreshToken: string): string {
-    const pepper = this.configService.get<string>('JWT_REFRESH_SECRET') || '';
-    return createHash('sha256').update(`${pepper}:${refreshToken}`).digest('hex');
+    // Hash refresh tokens so a DB leak can't be used to mint sessions.
+    const pepper = this.configService.get<string>("JWT_REFRESH_SECRET") || "";
+    return createHash("sha256")
+      .update(`${pepper}:${refreshToken}`)
+      .digest("hex");
+  }
+
+  private hashPasswordResetToken(token: string): string {
+    // Password reset tokens are stored only as hashes and expire quickly.
+    const pepper =
+      this.configService.get<string>("PASSWORD_RESET_SECRET") ||
+      this.configService.get<string>("JWT_SECRET") ||
+      "";
+    return createHash("sha256").update(`${pepper}:${token}`).digest("hex");
   }
 
   async register(dto: RegisterDto): Promise<AuthResponseDto> {
@@ -44,7 +60,7 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ConflictException('El email ya está registrado');
+      throw new ConflictException("El email ya está registrado");
     }
 
     // Hash password
@@ -68,13 +84,16 @@ export class AuthService {
     });
 
     if (!user || !user.active) {
-      throw new UnauthorizedException('Credenciales inválidas');
+      throw new UnauthorizedException("Credenciales inválidas");
     }
 
-    const isPasswordValid = await argon2.verify(user.passwordHash, dto.password);
+    const isPasswordValid = await argon2.verify(
+      user.passwordHash,
+      dto.password,
+    );
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Credenciales inválidas');
+      throw new UnauthorizedException("Credenciales inválidas");
     }
 
     return this.generateTokens(user);
@@ -89,19 +108,19 @@ export class AuthService {
     });
 
     if (!storedToken) {
-      throw new UnauthorizedException('Token de refresco inválido');
+      throw new UnauthorizedException("Token de refresco inválido");
     }
 
     if (storedToken.expiresAt < new Date()) {
       await this.prisma.refreshToken.delete({ where: { id: storedToken.id } });
-      throw new UnauthorizedException('Token de refresco expirado');
+      throw new UnauthorizedException("Token de refresco expirado");
     }
 
     if (!storedToken.user.active) {
-      throw new UnauthorizedException('Usuario inactivo');
+      throw new UnauthorizedException("Usuario inactivo");
     }
 
-    // Delete old refresh token
+    // Rotate refresh tokens to prevent replay.
     await this.prisma.refreshToken.delete({ where: { id: storedToken.id } });
 
     return this.generateTokens(storedToken.user);
@@ -127,13 +146,16 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new NotFoundException('Usuario no encontrado');
+      throw new NotFoundException("Usuario no encontrado");
     }
 
-    const isCurrentPasswordValid = await argon2.verify(user.passwordHash, dto.currentPassword);
+    const isCurrentPasswordValid = await argon2.verify(
+      user.passwordHash,
+      dto.currentPassword,
+    );
 
     if (!isCurrentPasswordValid) {
-      throw new BadRequestException('La contraseña actual es incorrecta');
+      throw new BadRequestException("La contraseña actual es incorrecta");
     }
 
     const newPasswordHash = await argon2.hash(dto.newPassword);
@@ -146,6 +168,71 @@ export class AuthService {
     // Invalidate all refresh tokens
     await this.prisma.refreshToken.deleteMany({
       where: { userId },
+    });
+  }
+
+  async requestPasswordReset(dto: ForgotPasswordDto): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email.toLowerCase() },
+    });
+
+    // Avoid leaking whether the email exists.
+    if (!user || !user.active) {
+      return;
+    }
+
+    const resetToken = randomBytes(32).toString("hex");
+    const resetTokenHash = this.hashPasswordResetToken(resetToken);
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetTokenHash: resetTokenHash,
+        passwordResetExpiresAt: expiresAt,
+      },
+    });
+
+    const baseUrl =
+      this.configService.get<string>("FRONTEND_URL") ||
+      this.configService.get<string>("CORS_ORIGINS")?.split(",")[0] ||
+      "http://localhost:3000";
+
+    // Short-lived reset link; token is not stored in plain text.
+    await this.emailService.sendPasswordResetEmail(
+      user.email,
+      user.fullName,
+      `${baseUrl}/auth/reset-password?token=${resetToken}`,
+    );
+  }
+
+  async resetPassword(dto: ResetPasswordDto): Promise<void> {
+    const tokenHash = this.hashPasswordResetToken(dto.token);
+    const user = await this.prisma.user.findFirst({
+      where: {
+        passwordResetTokenHash: tokenHash,
+        passwordResetExpiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException("Token inválido o expirado");
+    }
+
+    const passwordHash = await argon2.hash(dto.newPassword);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        passwordResetTokenHash: null,
+        passwordResetExpiresAt: null,
+      },
+    });
+
+    // Kill existing sessions after a password reset.
+    await this.prisma.refreshToken.deleteMany({
+      where: { userId: user.id },
     });
   }
 
@@ -168,14 +255,14 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new NotFoundException('Usuario no encontrado');
+      throw new NotFoundException("Usuario no encontrado");
     }
 
     return {
       id: user.id,
       email: user.email,
       fullName: user.fullName,
-      organizations: user.userOrgs.map((uo: any) => ({
+      organizations: user.userOrgs.map((uo) => ({
         id: uo.organization.id,
         name: uo.organization.name,
         cuit: uo.organization.cuit,
@@ -191,19 +278,19 @@ export class AuthService {
     });
 
     if (!invitation) {
-      throw new NotFoundException('Invitación no encontrada');
+      throw new NotFoundException("Invitación no encontrada");
     }
 
-    if (invitation.status !== 'PENDING') {
-      throw new BadRequestException('La invitación ya fue procesada');
+    if (invitation.status !== "PENDING") {
+      throw new BadRequestException("La invitación ya fue procesada");
     }
 
     if (invitation.expiresAt < new Date()) {
       await this.prisma.invitation.update({
         where: { id: invitation.id },
-        data: { status: 'EXPIRED' },
+        data: { status: "EXPIRED" },
       });
-      throw new BadRequestException('La invitación ha expirado');
+      throw new BadRequestException("La invitación ha expirado");
     }
 
     // Check if user already exists
@@ -214,7 +301,9 @@ export class AuthService {
     if (!user) {
       // User doesn't exist, need fullName and password
       if (!dto.fullName || !dto.password) {
-        throw new BadRequestException('Se requiere nombre completo y contraseña para usuarios nuevos');
+        throw new BadRequestException(
+          "Se requiere nombre completo y contraseña para usuarios nuevos",
+        );
       }
 
       const passwordHash = await argon2.hash(dto.password);
@@ -239,7 +328,7 @@ export class AuthService {
     });
 
     if (existingMembership) {
-      throw new ConflictException('Ya eres miembro de esta organización');
+      throw new ConflictException("Ya eres miembro de esta organización");
     }
 
     // Create membership and update invitation
@@ -253,14 +342,14 @@ export class AuthService {
       }),
       this.prisma.invitation.update({
         where: { id: invitation.id },
-        data: { status: 'ACCEPTED' },
+        data: { status: "ACCEPTED" },
       }),
     ]);
 
     await this.auditService.log(
       invitation.organizationId,
       AuditActions.USER_JOINED,
-      'UserOrg',
+      "UserOrg",
       membership.id,
       user.id,
       { role: invitation.role, email: user.email },
@@ -269,23 +358,31 @@ export class AuthService {
     return this.generateTokens(user);
   }
 
-  private async generateTokens(user: { id: string; email: string; fullName: string }): Promise<AuthResponseDto> {
+  private async generateTokens(user: {
+    id: string;
+    email: string;
+    fullName: string;
+  }): Promise<AuthResponseDto> {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
     };
 
     const accessToken = this.jwtService.sign(payload, {
-      secret: this.configService.get('JWT_SECRET'),
-      expiresIn: this.configService.get('JWT_EXPIRES_IN') || '15m',
+      secret: this.configService.get("JWT_SECRET"),
+      expiresIn: this.configService.get("JWT_EXPIRES_IN") || "15m",
     });
 
     const refreshToken = uuidv4();
     const refreshTokenHash = this.hashRefreshToken(refreshToken);
-    const refreshExpiresIn = this.configService.get('JWT_REFRESH_EXPIRES_IN') || '30d';
+    const refreshExpiresIn =
+      this.configService.get("JWT_REFRESH_EXPIRES_IN") || "30d";
     const expiresAt = new Date();
-    expiresAt.setTime(expiresAt.getTime() + this.parseDuration(refreshExpiresIn));
+    expiresAt.setTime(
+      expiresAt.getTime() + this.parseDuration(refreshExpiresIn),
+    );
 
+    // Store only the hashed refresh token for session persistence.
     await this.prisma.refreshToken.create({
       data: {
         userId: user.id,
@@ -320,13 +417,13 @@ export class AuthService {
     const unit = match[2];
 
     switch (unit) {
-      case 'd':
+      case "d":
         return value * 24 * 60 * 60 * 1000;
-      case 'h':
+      case "h":
         return value * 60 * 60 * 1000;
-      case 'm':
+      case "m":
         return value * 60 * 1000;
-      case 's':
+      case "s":
         return value * 1000;
       default:
         return 30 * 24 * 60 * 60 * 1000;

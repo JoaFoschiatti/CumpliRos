@@ -1,11 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { ObligationStatus, ObligationType, ReviewStatus } from '@prisma/client';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { PrismaService } from "../common/prisma/prisma.service";
+import {
+  Prisma,
+  ObligationStatus,
+  ObligationType,
+  ReviewStatus,
+} from "@prisma/client";
 import {
   ReportFilterDto,
   ComplianceReportDto,
   ObligationReportItemDto,
-} from './dto/report.dto';
+} from "./dto/report.dto";
 
 @Injectable()
 export class ReportsService {
@@ -20,13 +25,15 @@ export class ReportsService {
     });
 
     if (!organization) {
-      throw new NotFoundException('Organización no encontrada');
+      throw new NotFoundException("Organización no encontrada");
     }
 
-    const fromDate = filters.fromDate || new Date(new Date().setMonth(new Date().getMonth() - 1));
+    const fromDate =
+      filters.fromDate ||
+      new Date(new Date().setMonth(new Date().getMonth() - 1));
     const toDate = filters.toDate || new Date();
 
-    const where: any = {
+    const where: Prisma.ObligationWhereInput = {
       organizationId,
       createdAt: { gte: fromDate, lte: toDate },
     };
@@ -46,15 +53,27 @@ export class ReportsService {
 
     // Calculate summary
     const totalObligations = obligations.length;
-    const completed = obligations.filter((o) => o.status === ObligationStatus.COMPLETED).length;
-    const pending = obligations.filter(
-      (o) => o.status === ObligationStatus.PENDING || o.status === ObligationStatus.IN_PROGRESS,
+    const completed = obligations.filter(
+      (o) => o.status === ObligationStatus.COMPLETED,
     ).length;
-    const overdue = obligations.filter((o) => o.status === ObligationStatus.OVERDUE).length;
-    const complianceRate = totalObligations > 0 ? Math.round((completed / totalObligations) * 100) : 0;
+    const pending = obligations.filter(
+      (o) =>
+        o.status === ObligationStatus.PENDING ||
+        o.status === ObligationStatus.IN_PROGRESS,
+    ).length;
+    const overdue = obligations.filter(
+      (o) => o.status === ObligationStatus.OVERDUE,
+    ).length;
+    const complianceRate =
+      totalObligations > 0
+        ? Math.round((completed / totalObligations) * 100)
+        : 0;
 
     // By type
-    const typeGroups = new Map<ObligationType, { total: number; completed: number }>();
+    const typeGroups = new Map<
+      ObligationType,
+      { total: number; completed: number }
+    >();
     for (const obl of obligations) {
       if (!typeGroups.has(obl.type)) {
         typeGroups.set(obl.type, { total: 0, completed: 0 });
@@ -70,16 +89,25 @@ export class ReportsService {
       type,
       total: data.total,
       completed: data.completed,
-      complianceRate: data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0,
+      complianceRate:
+        data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0,
     }));
 
     // By location
-    const locationGroups = new Map<string, { name: string; total: number; completed: number; overdue: number }>();
+    const locationGroups = new Map<
+      string,
+      { name: string; total: number; completed: number; overdue: number }
+    >();
     for (const obl of obligations) {
-      const locId = obl.locationId || 'global';
-      const locName = obl.location?.name || 'Global (Organización)';
+      const locId = obl.locationId || "global";
+      const locName = obl.location?.name || "Global (Organización)";
       if (!locationGroups.has(locId)) {
-        locationGroups.set(locId, { name: locName, total: 0, completed: 0, overdue: 0 });
+        locationGroups.set(locId, {
+          name: locName,
+          total: 0,
+          completed: 0,
+          overdue: 0,
+        });
       }
       const group = locationGroups.get(locId)!;
       group.total++;
@@ -91,20 +119,26 @@ export class ReportsService {
       }
     }
 
-    const byLocation = Array.from(locationGroups.entries()).map(([locationId, data]) => ({
-      locationId,
-      locationName: data.name,
-      total: data.total,
-      completed: data.completed,
-      overdue: data.overdue,
-      complianceRate: data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0,
-    }));
+    const byLocation = Array.from(locationGroups.entries()).map(
+      ([locationId, data]) => ({
+        locationId,
+        locationName: data.name,
+        total: data.total,
+        completed: data.completed,
+        overdue: data.overdue,
+        complianceRate:
+          data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0,
+      }),
+    );
 
     // Timeline (grouped by week)
-    const timelineMap = new Map<string, { completed: number; overdue: number }>();
+    const timelineMap = new Map<
+      string,
+      { completed: number; overdue: number }
+    >();
     for (const obl of obligations) {
       const weekStart = this.getWeekStart(obl.dueDate);
-      const key = weekStart.toISOString().split('T')[0];
+      const key = weekStart.toISOString().split("T")[0];
       if (!timelineMap.has(key)) {
         timelineMap.set(key, { completed: 0, overdue: 0 });
       }
@@ -123,7 +157,13 @@ export class ReportsService {
 
     return {
       period: { from: fromDate, to: toDate },
-      summary: { totalObligations, completed, pending, overdue, complianceRate },
+      summary: {
+        totalObligations,
+        completed,
+        pending,
+        overdue,
+        complianceRate,
+      },
       byType,
       byLocation,
       timeline,
@@ -134,7 +174,7 @@ export class ReportsService {
     organizationId: string,
     filters: ReportFilterDto,
   ): Promise<ObligationReportItemDto[]> {
-    const where: any = { organizationId };
+    const where: Prisma.ObligationWhereInput = { organizationId };
 
     if (filters.fromDate || filters.toDate) {
       where.dueDate = {};
@@ -158,7 +198,7 @@ export class ReportsService {
         reviews: { where: { status: ReviewStatus.APPROVED }, take: 1 },
         _count: { select: { documents: true } },
       },
-      orderBy: { dueDate: 'asc' },
+      orderBy: { dueDate: "asc" },
     });
 
     return obligations.map((o) => ({
@@ -178,18 +218,21 @@ export class ReportsService {
     organizationId: string,
     filters: ReportFilterDto,
   ): Promise<string> {
-    const obligations = await this.getObligationsReport(organizationId, filters);
+    const obligations = await this.getObligationsReport(
+      organizationId,
+      filters,
+    );
 
     const headers = [
-      'ID',
-      'Título',
-      'Tipo',
-      'Estado',
-      'Fecha de Vencimiento',
-      'Local',
-      'Responsable',
-      'Documentos',
-      'Revisión Aprobada',
+      "ID",
+      "Título",
+      "Tipo",
+      "Estado",
+      "Fecha de Vencimiento",
+      "Local",
+      "Responsable",
+      "Documentos",
+      "Revisión Aprobada",
     ];
 
     const rows = obligations.map((o) => [
@@ -197,14 +240,14 @@ export class ReportsService {
       this.sanitizeCsvField(o.title),
       o.type,
       o.status,
-      o.dueDate.toISOString().split('T')[0],
-      this.sanitizeCsvField(o.locationName) || 'Global',
+      o.dueDate.toISOString().split("T")[0],
+      this.sanitizeCsvField(o.locationName) || "Global",
       this.sanitizeCsvField(o.ownerName),
       o.documentsCount.toString(),
-      o.hasApprovedReview ? 'Sí' : 'No',
+      o.hasApprovedReview ? "Sí" : "No",
     ]);
 
-    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
 
     return csv;
   }
@@ -214,7 +257,7 @@ export class ReportsService {
    * Prefixes dangerous characters with a single quote
    */
   private sanitizeCsvField(field: string | null | undefined): string {
-    if (!field) return '';
+    if (!field) return "";
 
     // Escape double quotes
     let sanitized = field.replace(/"/g, '""');

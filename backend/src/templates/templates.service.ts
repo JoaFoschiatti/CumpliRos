@@ -1,6 +1,13 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { JurisdictionsService, ROSARIO_JURISDICTION_CODE } from '../jurisdictions/jurisdictions.service';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
+import { PrismaService } from "../common/prisma/prisma.service";
+import {
+  JurisdictionsService,
+  ROSARIO_JURISDICTION_CODE,
+} from "../jurisdictions/jurisdictions.service";
 import {
   CreateObligationTemplateDto,
   UpdateObligationTemplateDto,
@@ -11,9 +18,19 @@ import {
   TemplateQueryDto,
   RubricDto,
   ChecklistItemDto,
-} from './dto/template.dto';
-import { PaginationDto, PaginatedResponse, createPaginatedResponse } from '../common/dto/pagination.dto';
-import { Prisma, ObligationStatus, TaskStatus } from '@prisma/client';
+} from "./dto/template.dto";
+import {
+  PaginationDto,
+  PaginatedResponse,
+  createPaginatedResponse,
+} from "../common/dto/pagination.dto";
+import { Prisma, ObligationStatus, TaskStatus } from "@prisma/client";
+
+type TemplateWithChecklist = Prisma.ObligationTemplateGetPayload<{
+  include: {
+    checklistItems: true;
+  };
+}>;
 
 @Injectable()
 export class TemplatesService {
@@ -22,7 +39,9 @@ export class TemplatesService {
     private readonly jurisdictionsService: JurisdictionsService,
   ) {}
 
-  async create(dto: CreateObligationTemplateDto): Promise<ObligationTemplateResponseDto> {
+  async create(
+    dto: CreateObligationTemplateDto,
+  ): Promise<ObligationTemplateResponseDto> {
     // Verificar que la jurisdiccion existe
     await this.jurisdictionsService.findOne(dto.jurisdictionId);
 
@@ -39,12 +58,14 @@ export class TemplatesService {
         requiresReview: dto.requiresReview,
         requiredEvidenceCount: dto.requiredEvidenceCount,
         severity: dto.severity,
-        references: dto.references ? (dto.references as Prisma.InputJsonValue) : undefined,
+        references: dto.references
+          ? (dto.references as Prisma.InputJsonValue)
+          : undefined,
         isActive: true,
       },
       include: {
         checklistItems: {
-          orderBy: { order: 'asc' },
+          orderBy: { order: "asc" },
         },
       },
     });
@@ -64,7 +85,7 @@ export class TemplatesService {
     const { page = 1, limit = 20 } = pagination;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: Prisma.ObligationTemplateWhereInput = {};
 
     if (query.jurisdictionId) {
       where.jurisdictionId = query.jurisdictionId;
@@ -84,7 +105,7 @@ export class TemplatesService {
         where,
         skip,
         take: limit,
-        orderBy: [{ rubric: 'asc' }, { title: 'asc' }],
+        orderBy: [{ rubric: "asc" }, { title: "asc" }],
         include: {
           _count: {
             select: { checklistItems: true },
@@ -118,7 +139,7 @@ export class TemplatesService {
         rubric: rubric.toLowerCase(),
         isActive: true,
       },
-      orderBy: { title: 'asc' },
+      orderBy: { title: "asc" },
       include: {
         _count: {
           select: { checklistItems: true },
@@ -143,7 +164,7 @@ export class TemplatesService {
       where: { id },
       include: {
         checklistItems: {
-          orderBy: { order: 'asc' },
+          orderBy: { order: "asc" },
         },
       },
     });
@@ -160,22 +181,33 @@ export class TemplatesService {
       where: { templateKey },
       include: {
         checklistItems: {
-          orderBy: { order: 'asc' },
+          orderBy: { order: "asc" },
         },
       },
     });
 
     if (!template) {
-      throw new NotFoundException(`Template no encontrado con key: ${templateKey}`);
+      throw new NotFoundException(
+        `Template no encontrado con key: ${templateKey}`,
+      );
     }
 
     return this.toResponseDto(template);
   }
 
-  async update(id: string, dto: UpdateObligationTemplateDto): Promise<ObligationTemplateResponseDto> {
+  async update(
+    id: string,
+    dto: UpdateObligationTemplateDto,
+  ): Promise<ObligationTemplateResponseDto> {
     await this.findOne(id);
 
-    const updateData: any = { ...dto };
+    const { checklist, references, ...rest } = dto;
+    const updateData: Prisma.ObligationTemplateUpdateInput = {
+      ...rest,
+      ...(references
+        ? { references: references as Prisma.InputJsonValue }
+        : {}),
+    };
 
     // Incrementar version si hay cambios sustanciales
     if (dto.title || dto.description || dto.checklist) {
@@ -183,10 +215,7 @@ export class TemplatesService {
     }
 
     // Manejar checklist por separado
-    const checklist = dto.checklist;
-    delete updateData.checklist;
-
-    const template = await this.prisma.obligationTemplate.update({
+    await this.prisma.obligationTemplate.update({
       where: { id },
       data: updateData,
     });
@@ -212,34 +241,36 @@ export class TemplatesService {
   }
 
   async getRubrics(jurisdictionId?: string): Promise<RubricDto[]> {
-    const where: any = { isActive: true };
+    const where: Prisma.ObligationTemplateWhereInput = { isActive: true };
     if (jurisdictionId) {
       where.jurisdictionId = jurisdictionId;
     }
 
     const rubrics = await this.prisma.obligationTemplate.groupBy({
-      by: ['rubric'],
+      by: ["rubric"],
       where,
       _count: { id: true },
     });
 
     // Mapeo de nombres para display
     const rubricNames: Record<string, string> = {
-      gastronomia: 'Gastronomia',
-      comercio: 'Comercio General',
-      estetica: 'Estetica y Spa',
-      farmacia: 'Farmacia',
-      salud: 'Salud',
-      educacion: 'Educacion',
-      hoteleria: 'Hoteleria',
-      construccion: 'Construccion',
-      transporte: 'Transporte',
-      otros: 'Otros',
+      gastronomia: "Gastronomia",
+      comercio: "Comercio General",
+      estetica: "Estetica y Spa",
+      farmacia: "Farmacia",
+      salud: "Salud",
+      educacion: "Educacion",
+      hoteleria: "Hoteleria",
+      construccion: "Construccion",
+      transporte: "Transporte",
+      otros: "Otros",
     };
 
     return rubrics.map((r) => ({
       rubric: r.rubric,
-      displayName: rubricNames[r.rubric] || r.rubric.charAt(0).toUpperCase() + r.rubric.slice(1),
+      displayName:
+        rubricNames[r.rubric] ||
+        r.rubric.charAt(0).toUpperCase() + r.rubric.slice(1),
       templateCount: r._count.id,
     }));
   }
@@ -262,7 +293,9 @@ export class TemplatesService {
     });
 
     if (!organization) {
-      throw new NotFoundException(`Organizacion no encontrada: ${organizationId}`);
+      throw new NotFoundException(
+        `Organizacion no encontrada: ${organizationId}`,
+      );
     }
 
     // Determinar jurisdiccion a usar
@@ -272,7 +305,9 @@ export class TemplatesService {
         jurisdictionId = organization.jurisdictionId;
       } else {
         // Usar Rosario por defecto
-        const defaultJurisdiction = await this.jurisdictionsService.findByCode(ROSARIO_JURISDICTION_CODE);
+        const defaultJurisdiction = await this.jurisdictionsService.findByCode(
+          ROSARIO_JURISDICTION_CODE,
+        );
         jurisdictionId = defaultJurisdiction.id;
       }
     }
@@ -290,7 +325,7 @@ export class TemplatesService {
         },
         include: {
           checklistItems: {
-            orderBy: { order: 'asc' },
+            orderBy: { order: "asc" },
           },
         },
       });
@@ -303,7 +338,7 @@ export class TemplatesService {
         },
         include: {
           checklistItems: {
-            orderBy: { order: 'asc' },
+            orderBy: { order: "asc" },
           },
         },
       });
@@ -351,7 +386,9 @@ export class TemplatesService {
           type: template.type,
           status: ObligationStatus.PENDING,
           dueDate,
-          recurrenceRule: this.periodicityToRecurrenceRule(template.defaultPeriodicity),
+          recurrenceRule: this.periodicityToRecurrenceRule(
+            template.defaultPeriodicity,
+          ),
           requiresReview: template.requiresReview,
           requiredEvidenceCount: template.requiredEvidenceCount,
           ownerUserId,
@@ -368,7 +405,8 @@ export class TemplatesService {
             obligationId: obligation.id,
             assignedToUserId: ownerUserId,
             title: `Checklist: ${template.title}`,
-            description: template.defaultDueRule || 'Completar los items del checklist',
+            description:
+              template.defaultDueRule || "Completar los items del checklist",
             status: TaskStatus.OPEN,
             dueDate,
           },
@@ -393,7 +431,10 @@ export class TemplatesService {
 
   // === Helpers ===
 
-  private async createChecklistItems(templateId: string, items: ChecklistItemDto[]): Promise<void> {
+  private async createChecklistItems(
+    templateId: string,
+    items: ChecklistItemDto[],
+  ): Promise<void> {
     await this.prisma.checklistTemplateItem.createMany({
       data: items.map((item, index) => ({
         obligationTemplateId: templateId,
@@ -409,31 +450,31 @@ export class TemplatesService {
     const dueDate = new Date(now);
 
     switch (periodicity) {
-      case 'WEEKLY':
+      case "WEEKLY":
         dueDate.setDate(now.getDate() + 7);
         break;
-      case 'BIWEEKLY':
+      case "BIWEEKLY":
         dueDate.setDate(now.getDate() + 14);
         break;
-      case 'MONTHLY':
+      case "MONTHLY":
         dueDate.setMonth(now.getMonth() + 1);
         break;
-      case 'BIMONTHLY':
+      case "BIMONTHLY":
         dueDate.setMonth(now.getMonth() + 2);
         break;
-      case 'QUARTERLY':
+      case "QUARTERLY":
         dueDate.setMonth(now.getMonth() + 3);
         break;
-      case 'SEMIANNUAL':
+      case "SEMIANNUAL":
         dueDate.setMonth(now.getMonth() + 6);
         break;
-      case 'ANNUAL':
+      case "ANNUAL":
         dueDate.setFullYear(now.getFullYear() + 1);
         break;
-      case 'BIENNIAL':
+      case "BIENNIAL":
         dueDate.setFullYear(now.getFullYear() + 2);
         break;
-      case 'ONE_TIME':
+      case "ONE_TIME":
         dueDate.setMonth(now.getMonth() + 1); // 1 mes por defecto
         break;
       default:
@@ -446,21 +487,23 @@ export class TemplatesService {
   private periodicityToRecurrenceRule(periodicity: string): string | null {
     // Convertir a formato iCalendar RRULE
     const rules: Record<string, string | null> = {
-      WEEKLY: 'FREQ=WEEKLY;INTERVAL=1',
-      BIWEEKLY: 'FREQ=WEEKLY;INTERVAL=2',
-      MONTHLY: 'FREQ=MONTHLY;INTERVAL=1',
-      BIMONTHLY: 'FREQ=MONTHLY;INTERVAL=2',
-      QUARTERLY: 'FREQ=MONTHLY;INTERVAL=3',
-      SEMIANNUAL: 'FREQ=MONTHLY;INTERVAL=6',
-      ANNUAL: 'FREQ=YEARLY;INTERVAL=1',
-      BIENNIAL: 'FREQ=YEARLY;INTERVAL=2',
+      WEEKLY: "FREQ=WEEKLY;INTERVAL=1",
+      BIWEEKLY: "FREQ=WEEKLY;INTERVAL=2",
+      MONTHLY: "FREQ=MONTHLY;INTERVAL=1",
+      BIMONTHLY: "FREQ=MONTHLY;INTERVAL=2",
+      QUARTERLY: "FREQ=MONTHLY;INTERVAL=3",
+      SEMIANNUAL: "FREQ=MONTHLY;INTERVAL=6",
+      ANNUAL: "FREQ=YEARLY;INTERVAL=1",
+      BIENNIAL: "FREQ=YEARLY;INTERVAL=2",
       ONE_TIME: null,
     };
 
     return rules[periodicity] || null;
   }
 
-  private toResponseDto(template: any): ObligationTemplateResponseDto {
+  private toResponseDto(
+    template: TemplateWithChecklist,
+  ): ObligationTemplateResponseDto {
     return {
       id: template.id,
       jurisdictionId: template.jurisdictionId,
@@ -480,7 +523,7 @@ export class TemplatesService {
       isActive: template.isActive,
       createdAt: template.createdAt,
       updatedAt: template.updatedAt,
-      checklistItems: template.checklistItems?.map((item: any) => ({
+      checklistItems: template.checklistItems?.map((item) => ({
         id: item.id,
         description: item.description,
         order: item.order,

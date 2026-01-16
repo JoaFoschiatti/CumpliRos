@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { EmailService } from '../common/email/email.service';
-import { ObligationStatus } from '@prisma/client';
+import { Injectable, Logger } from "@nestjs/common";
+import { PrismaService } from "../common/prisma/prisma.service";
+import { EmailService } from "../common/email/email.service";
+import { ObligationStatus } from "@prisma/client";
 
 @Injectable()
 export class NotificationsService {
@@ -29,7 +29,9 @@ export class NotificationsService {
       const upcomingObligations = await this.prisma.obligation.findMany({
         where: {
           organizationId: org.id,
-          status: { in: [ObligationStatus.PENDING, ObligationStatus.IN_PROGRESS] },
+          status: {
+            in: [ObligationStatus.PENDING, ObligationStatus.IN_PROGRESS],
+          },
           dueDate: {
             gte: now,
             lte: yellowThreshold,
@@ -55,7 +57,9 @@ export class NotificationsService {
         const owner = obligations[0].owner;
         const obligationsWithDays = obligations.map((o) => {
           const due = new Date(o.dueDate);
-          const daysUntilDue = Math.floor((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          const daysUntilDue = Math.floor(
+            (due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+          );
           return { title: o.title, daysUntilDue };
         });
 
@@ -108,7 +112,7 @@ export class NotificationsService {
       const owners = await this.prisma.userOrg.findMany({
         where: {
           organizationId: org.id,
-          role: 'OWNER',
+          role: "OWNER",
         },
         include: {
           user: { select: { email: true, fullName: true } },
@@ -131,7 +135,9 @@ export class NotificationsService {
 
           if (sent) {
             notificationsSent++;
-            this.logger.log(`Sent overdue obligations notification to ${ownerMembership.user.email}`);
+            this.logger.log(
+              `Sent overdue obligations notification to ${ownerMembership.user.email}`,
+            );
           }
         }
       }
@@ -154,7 +160,9 @@ export class NotificationsService {
       obligationTitle,
     );
 
-    this.logger.log(`Sent review required notification to ${reviewerEmail} for obligation ${obligationId}`);
+    this.logger.log(
+      `Sent review required notification to ${reviewerEmail} for obligation ${obligationId}`,
+    );
   }
 
   async notifyReviewRejected(

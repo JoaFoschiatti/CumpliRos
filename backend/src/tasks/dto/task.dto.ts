@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsString,
   IsOptional,
@@ -11,12 +11,12 @@ import {
   MaxLength,
   IsInt,
   Min,
-} from 'class-validator';
-import { Type } from 'class-transformer';
-import { TaskStatus } from '@prisma/client';
+} from "class-validator";
+import { Type } from "class-transformer";
+import { TaskStatus } from "@prisma/client";
 
 export class CreateTaskItemDto {
-  @ApiProperty({ example: 'Solicitar formulario de renovación' })
+  @ApiProperty({ example: "Solicitar formulario de renovación" })
   @IsString()
   @MaxLength(500)
   description: string;
@@ -33,7 +33,7 @@ export class CreateTaskDto {
   @IsUUID()
   obligationId: string;
 
-  @ApiProperty({ example: 'Gestionar renovación de habilitación' })
+  @ApiProperty({ example: "Gestionar renovación de habilitación" })
   @IsString()
   @MaxLength(255)
   title: string;

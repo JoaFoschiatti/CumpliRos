@@ -5,14 +5,14 @@ import {
   ForbiddenException,
   BadRequestException,
   Logger,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { v4 as uuidv4 } from 'uuid';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { EmailService } from '../common/email/email.service';
-import { Role } from '@prisma/client';
-import { AuditService } from '../audit/audit.service';
-import { AuditActions } from '../audit/dto/audit.dto';
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { v4 as uuidv4 } from "uuid";
+import { PrismaService } from "../common/prisma/prisma.service";
+import { EmailService } from "../common/email/email.service";
+import { Role } from "@prisma/client";
+import { AuditService } from "../audit/audit.service";
+import { AuditActions } from "../audit/dto/audit.dto";
 import {
   CreateOrganizationDto,
   UpdateOrganizationDto,
@@ -21,8 +21,12 @@ import {
   OrganizationResponseDto,
   OrganizationMemberDto,
   OrganizationStatsDto,
-} from './dto/organization.dto';
-import { PaginationDto, createPaginatedResponse, PaginatedResponse } from '../common/dto/pagination.dto';
+} from "./dto/organization.dto";
+import {
+  PaginationDto,
+  createPaginatedResponse,
+  PaginatedResponse,
+} from "../common/dto/pagination.dto";
 
 @Injectable()
 export class OrganizationsService {
@@ -35,21 +39,24 @@ export class OrganizationsService {
     private auditService: AuditService,
   ) {}
 
-  async create(userId: string, dto: CreateOrganizationDto): Promise<OrganizationResponseDto> {
+  async create(
+    userId: string,
+    dto: CreateOrganizationDto,
+  ): Promise<OrganizationResponseDto> {
     // Check if CUIT already exists
     const existing = await this.prisma.organization.findUnique({
       where: { cuit: dto.cuit },
     });
 
     if (existing) {
-      throw new ConflictException('Ya existe una organizacion con ese CUIT');
+      throw new ConflictException("Ya existe una organizacion con ese CUIT");
     }
 
     // Obtener jurisdiccion por defecto (Rosario) si no se especifica
     let jurisdictionId = dto.jurisdictionId;
     if (!jurisdictionId) {
       const defaultJurisdiction = await this.prisma.jurisdiction.findUnique({
-        where: { code: 'ar-sf-rosario' },
+        where: { code: "ar-sf-rosario" },
       });
       jurisdictionId = defaultJurisdiction?.id;
     }
@@ -83,16 +90,23 @@ export class OrganizationsService {
     await this.auditService.log(
       organization.id,
       AuditActions.ORGANIZATION_CREATED,
-      'Organization',
+      "Organization",
       organization.id,
       userId,
-      { cuit: organization.cuit, name: organization.name, plan: organization.plan },
+      {
+        cuit: organization.cuit,
+        name: organization.name,
+        plan: organization.plan,
+      },
     );
 
     return organization;
   }
 
-  async findAllForUser(userId: string, pagination: PaginationDto): Promise<PaginatedResponse<OrganizationResponseDto>> {
+  async findAllForUser(
+    userId: string,
+    pagination: PaginationDto,
+  ): Promise<PaginatedResponse<OrganizationResponseDto>> {
     const where = {
       userOrgs: {
         some: { userId },
@@ -118,7 +132,12 @@ export class OrganizationsService {
       this.prisma.organization.count({ where }),
     ]);
 
-    return createPaginatedResponse(organizations, total, pagination.page!, pagination.limit!);
+    return createPaginatedResponse(
+      organizations,
+      total,
+      pagination.page!,
+      pagination.limit!,
+    );
   }
 
   async findOne(organizationId: string): Promise<OrganizationResponseDto> {
@@ -135,13 +154,17 @@ export class OrganizationsService {
     });
 
     if (!organization) {
-      throw new NotFoundException('Organizacion no encontrada');
+      throw new NotFoundException("Organizacion no encontrada");
     }
 
     return organization;
   }
 
-  async update(organizationId: string, dto: UpdateOrganizationDto, userId?: string): Promise<OrganizationResponseDto> {
+  async update(
+    organizationId: string,
+    dto: UpdateOrganizationDto,
+    userId?: string,
+  ): Promise<OrganizationResponseDto> {
     // Check if CUIT is being changed and already exists
     if (dto.cuit) {
       const existing = await this.prisma.organization.findFirst({
@@ -152,7 +175,7 @@ export class OrganizationsService {
       });
 
       if (existing) {
-        throw new ConflictException('Ya existe otra organización con ese CUIT');
+        throw new ConflictException("Ya existe otra organización con ese CUIT");
       }
     }
 
@@ -172,7 +195,7 @@ export class OrganizationsService {
     await this.auditService.log(
       organizationId,
       AuditActions.ORGANIZATION_UPDATED,
-      'Organization',
+      "Organization",
       organizationId,
       userId,
       { changes: dto },
@@ -190,7 +213,7 @@ export class OrganizationsService {
     await this.auditService.log(
       organizationId,
       AuditActions.ORGANIZATION_DEACTIVATED,
-      'Organization',
+      "Organization",
       organizationId,
       userId,
     );
@@ -216,27 +239,27 @@ export class OrganizationsService {
       this.prisma.obligation.count({
         where: {
           organizationId,
-          status: 'OVERDUE',
+          status: "OVERDUE",
         },
       }),
       this.prisma.obligation.count({
         where: {
           organizationId,
-          status: { in: ['PENDING', 'IN_PROGRESS'] },
+          status: { in: ["PENDING", "IN_PROGRESS"] },
           dueDate: { lte: in7Days, gte: now },
         },
       }),
       this.prisma.obligation.count({
         where: {
           organizationId,
-          status: { in: ['PENDING', 'IN_PROGRESS'] },
+          status: { in: ["PENDING", "IN_PROGRESS"] },
           dueDate: { lte: in15Days, gte: now },
         },
       }),
       this.prisma.obligation.count({
         where: {
           organizationId,
-          status: 'COMPLETED',
+          status: "COMPLETED",
         },
       }),
     ]);
@@ -264,7 +287,7 @@ export class OrganizationsService {
           },
         },
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: "asc" },
     });
 
     return userOrgs.map((uo) => ({
@@ -298,7 +321,9 @@ export class OrganizationsService {
       });
 
       if (existingMembership) {
-        throw new ConflictException('El usuario ya es miembro de esta organización');
+        throw new ConflictException(
+          "El usuario ya es miembro de esta organización",
+        );
       }
     }
 
@@ -307,12 +332,14 @@ export class OrganizationsService {
       where: {
         organizationId,
         email: dto.email.toLowerCase(),
-        status: 'PENDING',
+        status: "PENDING",
       },
     });
 
     if (pendingInvitation) {
-      throw new ConflictException('Ya existe una invitación pendiente para este email');
+      throw new ConflictException(
+        "Ya existe una invitación pendiente para este email",
+      );
     }
 
     // Get organization and inviter details
@@ -322,7 +349,7 @@ export class OrganizationsService {
     ]);
 
     if (!organization || !inviter) {
-      throw new NotFoundException('Organización o usuario no encontrado');
+      throw new NotFoundException("Organización o usuario no encontrado");
     }
 
     // Create invitation
@@ -342,14 +369,20 @@ export class OrganizationsService {
     await this.auditService.log(
       organizationId,
       AuditActions.USER_INVITED,
-      'Invitation',
+      "Invitation",
       invitation.id,
       inviterId,
-      { email: invitation.email, role: invitation.role, expiresAt: invitation.expiresAt },
+      {
+        email: invitation.email,
+        role: invitation.role,
+        expiresAt: invitation.expiresAt,
+      },
     );
 
     // Send invitation email
-    const baseUrl = this.configService.get<string>('CORS_ORIGINS')?.split(',')[0] || 'http://localhost:3000';
+    const baseUrl =
+      this.configService.get<string>("CORS_ORIGINS")?.split(",")[0] ||
+      "http://localhost:3000";
     const sent = await this.emailService.sendInvitationEmail(
       dto.email.toLowerCase(),
       organization.name,
@@ -360,7 +393,9 @@ export class OrganizationsService {
     );
 
     if (sent) {
-      this.logger.log(`Invitation email sent to ${dto.email} for organization ${organization.name}`);
+      this.logger.log(
+        `Invitation email sent to ${dto.email} for organization ${organization.name}`,
+      );
     } else {
       this.logger.warn(`Failed to send invitation email to ${dto.email}`);
     }
@@ -379,12 +414,12 @@ export class OrganizationsService {
     });
 
     if (!userOrg || userOrg.organizationId !== organizationId) {
-      throw new NotFoundException('Miembro no encontrado');
+      throw new NotFoundException("Miembro no encontrado");
     }
 
     // Cannot change your own role
     if (userOrg.userId === currentUserId) {
-      throw new ForbiddenException('No puedes cambiar tu propio rol');
+      throw new ForbiddenException("No puedes cambiar tu propio rol");
     }
 
     // Cannot demote the only OWNER
@@ -397,7 +432,9 @@ export class OrganizationsService {
       });
 
       if (ownerCount === 1) {
-        throw new BadRequestException('Debe haber al menos un propietario en la organización');
+        throw new BadRequestException(
+          "Debe haber al menos un propietario en la organización",
+        );
       }
     }
 
@@ -409,25 +446,31 @@ export class OrganizationsService {
     await this.auditService.log(
       organizationId,
       AuditActions.USER_ROLE_CHANGED,
-      'UserOrg',
+      "UserOrg",
       memberId,
       currentUserId,
       { role: dto.role },
     );
   }
 
-  async removeMember(organizationId: string, memberId: string, currentUserId: string): Promise<void> {
+  async removeMember(
+    organizationId: string,
+    memberId: string,
+    currentUserId: string,
+  ): Promise<void> {
     const userOrg = await this.prisma.userOrg.findUnique({
       where: { id: memberId },
     });
 
     if (!userOrg || userOrg.organizationId !== organizationId) {
-      throw new NotFoundException('Miembro no encontrado');
+      throw new NotFoundException("Miembro no encontrado");
     }
 
     // Cannot remove yourself
     if (userOrg.userId === currentUserId) {
-      throw new ForbiddenException('No puedes eliminarte a ti mismo de la organización');
+      throw new ForbiddenException(
+        "No puedes eliminarte a ti mismo de la organización",
+      );
     }
 
     // Cannot remove the only OWNER
@@ -440,7 +483,9 @@ export class OrganizationsService {
       });
 
       if (ownerCount === 1) {
-        throw new BadRequestException('No puedes eliminar al único propietario de la organización');
+        throw new BadRequestException(
+          "No puedes eliminar al único propietario de la organización",
+        );
       }
     }
 
@@ -451,38 +496,42 @@ export class OrganizationsService {
     await this.auditService.log(
       organizationId,
       AuditActions.USER_REMOVED,
-      'UserOrg',
+      "UserOrg",
       memberId,
       currentUserId,
       { removedUserId: userOrg.userId, role: userOrg.role },
     );
   }
 
-  async cancelInvitation(organizationId: string, invitationId: string, userId?: string): Promise<void> {
+  async cancelInvitation(
+    organizationId: string,
+    invitationId: string,
+    userId?: string,
+  ): Promise<void> {
     const invitation = await this.prisma.invitation.findUnique({
       where: { id: invitationId },
     });
 
     if (!invitation || invitation.organizationId !== organizationId) {
-      throw new NotFoundException('Invitación no encontrada');
+      throw new NotFoundException("Invitación no encontrada");
     }
 
-    if (invitation.status !== 'PENDING') {
-      throw new BadRequestException('La invitación ya fue procesada');
+    if (invitation.status !== "PENDING") {
+      throw new BadRequestException("La invitación ya fue procesada");
     }
 
     await this.prisma.invitation.update({
       where: { id: invitationId },
-      data: { status: 'CANCELLED' },
+      data: { status: "CANCELLED" },
     });
 
     await this.auditService.log(
       organizationId,
       AuditActions.INVITATION_CANCELLED,
-      'Invitation',
+      "Invitation",
       invitationId,
       userId,
-      { status: 'CANCELLED' },
+      { status: "CANCELLED" },
     );
   }
 
@@ -490,9 +539,9 @@ export class OrganizationsService {
     return this.prisma.invitation.findMany({
       where: {
         organizationId,
-        status: 'PENDING',
+        status: "PENDING",
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
   }
 }

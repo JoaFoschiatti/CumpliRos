@@ -99,6 +99,8 @@ model User {
   email        String   @unique @db.VarChar(255)
   fullName     String   @map("full_name") @db.VarChar(255)
   passwordHash String   @map("password_hash") @db.VarChar(255)
+  passwordResetTokenHash String?  @map("password_reset_token_hash") @db.VarChar(500)
+  passwordResetExpiresAt DateTime? @map("password_reset_expires_at")
   active       Boolean  @default(true)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")

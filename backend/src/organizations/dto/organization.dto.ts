@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from "@nestjs/swagger";
 import {
   IsString,
   IsOptional,
@@ -10,21 +10,29 @@ import {
   IsEnum,
   IsEmail,
   IsUUID,
-} from 'class-validator';
-import { Plan, Role } from '@prisma/client';
+} from "class-validator";
+import { Plan, Role } from "@prisma/client";
 
 export class CreateOrganizationDto {
-  @ApiProperty({ example: '30-12345678-9', description: 'CUIT de la organizacion' })
+  @ApiProperty({
+    example: "30-12345678-9",
+    description: "CUIT de la organizacion",
+  })
   @IsString()
-  @Matches(/^\d{2}-\d{8}-\d{1}$/, { message: 'CUIT invalido. Formato: XX-XXXXXXXX-X' })
+  @Matches(/^\d{2}-\d{8}-\d{1}$/, {
+    message: "CUIT invalido. Formato: XX-XXXXXXXX-X",
+  })
   cuit: string;
 
-  @ApiProperty({ example: 'Mi Comercio S.R.L.' })
+  @ApiProperty({ example: "Mi Comercio S.R.L." })
   @IsString()
   @MaxLength(255)
   name: string;
 
-  @ApiPropertyOptional({ description: 'ID de la jurisdiccion (usa Rosario por defecto si no se especifica)' })
+  @ApiPropertyOptional({
+    description:
+      "ID de la jurisdiccion (usa Rosario por defecto si no se especifica)",
+  })
   @IsOptional()
   @IsUUID()
   jurisdictionId?: string;
@@ -52,8 +60,8 @@ export class CreateOrganizationDto {
 export class UpdateOrganizationDto extends PartialType(CreateOrganizationDto) {}
 
 export class InviteUserDto {
-  @ApiProperty({ example: 'contador@estudio.com' })
-  @IsEmail({}, { message: 'Email inválido' })
+  @ApiProperty({ example: "contador@estudio.com" })
+  @IsEmail({}, { message: "Email inválido" })
   email: string;
 
   @ApiProperty({ enum: Role })
@@ -71,13 +79,13 @@ export class JurisdictionSummaryDto {
   @ApiProperty()
   id: string;
 
-  @ApiProperty({ example: 'ar-sf-rosario' })
+  @ApiProperty({ example: "ar-sf-rosario" })
   code: string;
 
-  @ApiProperty({ example: 'Rosario' })
+  @ApiProperty({ example: "Rosario" })
   name: string;
 
-  @ApiPropertyOptional({ example: 'Santa Fe' })
+  @ApiPropertyOptional({ example: "Santa Fe" })
   province?: string | null;
 }
 

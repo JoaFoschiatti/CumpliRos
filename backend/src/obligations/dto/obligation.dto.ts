@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from "@nestjs/swagger";
 import {
   IsString,
   IsOptional,
@@ -10,17 +10,19 @@ import {
   Max,
   IsBoolean,
   MaxLength,
-} from 'class-validator';
-import { Type } from 'class-transformer';
-import { ObligationType, ObligationStatus } from '@prisma/client';
+} from "class-validator";
+import { Type } from "class-transformer";
+import { ObligationType, ObligationStatus } from "@prisma/client";
 
 export class CreateObligationDto {
-  @ApiProperty({ example: 'Renovación de habilitación comercial' })
+  @ApiProperty({ example: "Renovación de habilitación comercial" })
   @IsString()
   @MaxLength(255)
   title: string;
 
-  @ApiPropertyOptional({ example: 'Renovación anual de habilitación municipal' })
+  @ApiPropertyOptional({
+    example: "Renovación anual de habilitación municipal",
+  })
   @IsOptional()
   @IsString()
   description?: string;
@@ -29,17 +31,22 @@ export class CreateObligationDto {
   @IsEnum(ObligationType)
   type: ObligationType;
 
-  @ApiProperty({ example: '2024-06-30' })
+  @ApiProperty({ example: "2024-06-30" })
   @Type(() => Date)
   @IsDate()
   dueDate: Date;
 
-  @ApiPropertyOptional({ description: 'ID del local (si aplica a local específico)' })
+  @ApiPropertyOptional({
+    description: "ID del local (si aplica a local específico)",
+  })
   @IsOptional()
   @IsUUID()
   locationId?: string;
 
-  @ApiPropertyOptional({ example: 'FREQ=YEARLY;INTERVAL=1', description: 'Regla de recurrencia (iCalendar)' })
+  @ApiPropertyOptional({
+    example: "FREQ=YEARLY;INTERVAL=1",
+    description: "Regla de recurrencia (iCalendar)",
+  })
   @IsOptional()
   @IsString()
   @MaxLength(100)
@@ -57,7 +64,7 @@ export class CreateObligationDto {
   @Max(10)
   requiredEvidenceCount?: number;
 
-  @ApiProperty({ description: 'ID del usuario responsable' })
+  @ApiProperty({ description: "ID del usuario responsable" })
   @IsUUID()
   ownerUserId: string;
 }
@@ -90,28 +97,28 @@ export class ObligationFilterDto {
   @IsUUID()
   ownerUserId?: string;
 
-  @ApiPropertyOptional({ description: 'Filtrar por vencimiento desde' })
+  @ApiPropertyOptional({ description: "Filtrar por vencimiento desde" })
   @IsOptional()
   @Type(() => Date)
   @IsDate()
   dueDateFrom?: Date;
 
-  @ApiPropertyOptional({ description: 'Filtrar por vencimiento hasta' })
+  @ApiPropertyOptional({ description: "Filtrar por vencimiento hasta" })
   @IsOptional()
   @Type(() => Date)
   @IsDate()
   dueDateTo?: Date;
 
-  @ApiPropertyOptional({ enum: ['GREEN', 'YELLOW', 'RED'] })
+  @ApiPropertyOptional({ enum: ["GREEN", "YELLOW", "RED"] })
   @IsOptional()
   @IsString()
-  trafficLight?: 'GREEN' | 'YELLOW' | 'RED';
+  trafficLight?: "GREEN" | "YELLOW" | "RED";
 }
 
 export enum TrafficLight {
-  GREEN = 'GREEN',
-  YELLOW = 'YELLOW',
-  RED = 'RED',
+  GREEN = "GREEN",
+  YELLOW = "YELLOW",
+  RED = "RED",
 }
 
 export class ObligationResponseDto {

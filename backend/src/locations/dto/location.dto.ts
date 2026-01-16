@@ -1,19 +1,19 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { IsString, IsOptional, MaxLength, IsBoolean, IsUUID } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional, PartialType } from "@nestjs/swagger";
+import { IsString, IsOptional, MaxLength, IsBoolean } from "class-validator";
 
 export class CreateLocationDto {
-  @ApiProperty({ example: 'Local Centro' })
+  @ApiProperty({ example: "Local Centro" })
   @IsString()
   @MaxLength(255)
   name: string;
 
-  @ApiPropertyOptional({ example: 'Av. Pellegrini 1234, Rosario' })
+  @ApiPropertyOptional({ example: "Av. Pellegrini 1234, Rosario" })
   @IsOptional()
   @IsString()
   @MaxLength(500)
   address?: string;
 
-  @ApiPropertyOptional({ example: 'Comercio minorista' })
+  @ApiPropertyOptional({ example: "Comercio minorista" })
   @IsOptional()
   @IsString()
   @MaxLength(255)

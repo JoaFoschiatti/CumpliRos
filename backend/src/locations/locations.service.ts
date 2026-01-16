@@ -1,9 +1,21 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { AuditService } from '../audit/audit.service';
-import { AuditActions } from '../audit/dto/audit.dto';
-import { CreateLocationDto, UpdateLocationDto, LocationResponseDto } from './dto/location.dto';
-import { PaginationDto, createPaginatedResponse, PaginatedResponse } from '../common/dto/pagination.dto';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from "@nestjs/common";
+import { PrismaService } from "../common/prisma/prisma.service";
+import { AuditService } from "../audit/audit.service";
+import { AuditActions } from "../audit/dto/audit.dto";
+import {
+  CreateLocationDto,
+  UpdateLocationDto,
+  LocationResponseDto,
+} from "./dto/location.dto";
+import {
+  PaginationDto,
+  createPaginatedResponse,
+  PaginatedResponse,
+} from "../common/dto/pagination.dto";
 
 @Injectable()
 export class LocationsService {
@@ -12,7 +24,11 @@ export class LocationsService {
     private auditService: AuditService,
   ) {}
 
-  async create(organizationId: string, dto: CreateLocationDto, userId?: string): Promise<LocationResponseDto> {
+  async create(
+    organizationId: string,
+    dto: CreateLocationDto,
+    userId?: string,
+  ): Promise<LocationResponseDto> {
     // Check for duplicate name in same organization
     const existing = await this.prisma.location.findFirst({
       where: {
@@ -23,7 +39,9 @@ export class LocationsService {
     });
 
     if (existing) {
-      throw new ConflictException('Ya existe un local con ese nombre en esta organización');
+      throw new ConflictException(
+        "Ya existe un local con ese nombre en esta organización",
+      );
     }
 
     const location = await this.prisma.location.create({
@@ -43,7 +61,7 @@ export class LocationsService {
     await this.auditService.log(
       organizationId,
       AuditActions.LOCATION_CREATED,
-      'Location',
+      "Location",
       location.id,
       userId,
       { name: location.name, rubric: location.rubric ?? undefined },
@@ -67,7 +85,7 @@ export class LocationsService {
         where,
         skip: pagination.skip,
         take: pagination.take,
-        orderBy: { name: 'asc' },
+        orderBy: { name: "asc" },
         include: {
           _count: {
             select: { obligations: true },
@@ -77,10 +95,18 @@ export class LocationsService {
       this.prisma.location.count({ where }),
     ]);
 
-    return createPaginatedResponse(locations, total, pagination.page!, pagination.limit!);
+    return createPaginatedResponse(
+      locations,
+      total,
+      pagination.page!,
+      pagination.limit!,
+    );
   }
 
-  async findOne(organizationId: string, locationId: string): Promise<LocationResponseDto> {
+  async findOne(
+    organizationId: string,
+    locationId: string,
+  ): Promise<LocationResponseDto> {
     const location = await this.prisma.location.findFirst({
       where: {
         id: locationId,
@@ -94,7 +120,7 @@ export class LocationsService {
     });
 
     if (!location) {
-      throw new NotFoundException('Local no encontrado');
+      throw new NotFoundException("Local no encontrado");
     }
 
     return location;
@@ -114,7 +140,7 @@ export class LocationsService {
     });
 
     if (!location) {
-      throw new NotFoundException('Local no encontrado');
+      throw new NotFoundException("Local no encontrado");
     }
 
     // Check for duplicate name if changing name
@@ -129,7 +155,7 @@ export class LocationsService {
       });
 
       if (existing) {
-        throw new ConflictException('Ya existe otro local con ese nombre');
+        throw new ConflictException("Ya existe otro local con ese nombre");
       }
     }
 
@@ -146,7 +172,7 @@ export class LocationsService {
     await this.auditService.log(
       organizationId,
       AuditActions.LOCATION_UPDATED,
-      'Location',
+      "Location",
       locationId,
       userId,
       { changes: dto },
@@ -155,7 +181,11 @@ export class LocationsService {
     return updated;
   }
 
-  async deactivate(organizationId: string, locationId: string, userId?: string): Promise<void> {
+  async deactivate(
+    organizationId: string,
+    locationId: string,
+    userId?: string,
+  ): Promise<void> {
     const location = await this.prisma.location.findFirst({
       where: {
         id: locationId,
@@ -164,7 +194,7 @@ export class LocationsService {
     });
 
     if (!location) {
-      throw new NotFoundException('Local no encontrado');
+      throw new NotFoundException("Local no encontrado");
     }
 
     await this.prisma.location.update({
@@ -175,7 +205,7 @@ export class LocationsService {
     await this.auditService.log(
       organizationId,
       AuditActions.LOCATION_DEACTIVATED,
-      'Location',
+      "Location",
       locationId,
       userId,
     );

@@ -1,7 +1,10 @@
-import { Module } from '@nestjs/common';
-import { TemplatesController, OrganizationTemplatesController } from './templates.controller';
-import { TemplatesService } from './templates.service';
-import { JurisdictionsModule } from '../jurisdictions/jurisdictions.module';
+import { Module } from "@nestjs/common";
+import {
+  TemplatesController,
+  OrganizationTemplatesController,
+} from "./templates.controller";
+import { TemplatesService } from "./templates.service";
+import { JurisdictionsModule } from "../jurisdictions/jurisdictions.module";
 
 @Module({
   imports: [JurisdictionsModule],

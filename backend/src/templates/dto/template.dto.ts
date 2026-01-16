@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from "@nestjs/swagger";
 import {
   IsString,
   IsBoolean,
@@ -10,13 +10,13 @@ import {
   ValidateNested,
   MaxLength,
   Min,
-} from 'class-validator';
-import { Type } from 'class-transformer';
-import { ObligationType, Periodicity, TemplateSeverity } from '@prisma/client';
+} from "class-validator";
+import { Type } from "class-transformer";
+import { ObligationType, Periodicity, TemplateSeverity } from "@prisma/client";
 
 // DTO para items de checklist
 export class ChecklistItemDto {
-  @ApiProperty({ example: 'Completar formulario de solicitud' })
+  @ApiProperty({ example: "Completar formulario de solicitud" })
   @IsString()
   @MaxLength(500)
   description: string;
@@ -41,26 +41,28 @@ export class TemplateReferenceDto {
 
 // Create DTO
 export class CreateObligationTemplateDto {
-  @ApiProperty({ example: '00000000-0000-0000-0000-000000000001' })
+  @ApiProperty({ example: "00000000-0000-0000-0000-000000000001" })
   @IsUUID()
   jurisdictionId: string;
 
-  @ApiProperty({ example: 'rosario.gastronomia.habilitacion_comercial' })
+  @ApiProperty({ example: "rosario.gastronomia.habilitacion_comercial" })
   @IsString()
   @MaxLength(255)
   templateKey: string;
 
-  @ApiProperty({ example: 'gastronomia' })
+  @ApiProperty({ example: "gastronomia" })
   @IsString()
   @MaxLength(100)
   rubric: string;
 
-  @ApiProperty({ example: 'Habilitacion Comercial Municipal' })
+  @ApiProperty({ example: "Habilitacion Comercial Municipal" })
   @IsString()
   @MaxLength(255)
   title: string;
 
-  @ApiPropertyOptional({ example: 'Habilitacion municipal obligatoria para operar' })
+  @ApiPropertyOptional({
+    example: "Habilitacion municipal obligatoria para operar",
+  })
   @IsOptional()
   @IsString()
   description?: string;
@@ -69,11 +71,11 @@ export class CreateObligationTemplateDto {
   @IsEnum(ObligationType)
   type: ObligationType;
 
-  @ApiProperty({ enum: Periodicity, default: 'ANNUAL' })
+  @ApiProperty({ enum: Periodicity, default: "ANNUAL" })
   @IsEnum(Periodicity)
   defaultPeriodicity: Periodicity;
 
-  @ApiPropertyOptional({ example: 'Renovar antes de vencimiento' })
+  @ApiPropertyOptional({ example: "Renovar antes de vencimiento" })
   @IsOptional()
   @IsString()
   @MaxLength(255)
@@ -88,7 +90,7 @@ export class CreateObligationTemplateDto {
   @Min(0)
   requiredEvidenceCount: number;
 
-  @ApiProperty({ enum: TemplateSeverity, default: 'MEDIUM' })
+  @ApiProperty({ enum: TemplateSeverity, default: "MEDIUM" })
   @IsEnum(TemplateSeverity)
   severity: TemplateSeverity;
 
@@ -106,7 +108,9 @@ export class CreateObligationTemplateDto {
   checklist?: ChecklistItemDto[];
 }
 
-export class UpdateObligationTemplateDto extends PartialType(CreateObligationTemplateDto) {
+export class UpdateObligationTemplateDto extends PartialType(
+  CreateObligationTemplateDto,
+) {
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
@@ -171,7 +175,7 @@ export class ObligationTemplateResponseDto {
   severity: TemplateSeverity;
 
   @ApiPropertyOptional()
-  references?: any;
+  references?: Record<string, unknown>;
 
   @ApiProperty()
   version: number;
@@ -220,47 +224,56 @@ export class TemplateSummaryDto {
 
 // DTO para aplicar plantillas a una organizacion
 export class ApplyTemplatesDto {
-  @ApiProperty({ example: 'gastronomia', description: 'Rubro para filtrar plantillas' })
+  @ApiProperty({
+    example: "gastronomia",
+    description: "Rubro para filtrar plantillas",
+  })
   @IsString()
   @MaxLength(100)
   rubric: string;
 
-  @ApiPropertyOptional({ description: 'ID de jurisdiccion (usa la de la org si no se especifica)' })
+  @ApiPropertyOptional({
+    description: "ID de jurisdiccion (usa la de la org si no se especifica)",
+  })
   @IsOptional()
   @IsUUID()
   jurisdictionId?: string;
 
-  @ApiPropertyOptional({ description: 'IDs especificos de templates a aplicar' })
+  @ApiPropertyOptional({
+    description: "IDs especificos de templates a aplicar",
+  })
   @IsOptional()
   @IsArray()
-  @IsUUID('4', { each: true })
+  @IsUUID("4", { each: true })
   templateIds?: string[];
 
-  @ApiPropertyOptional({ description: 'ID del local donde aplicar (opcional)' })
+  @ApiPropertyOptional({ description: "ID del local donde aplicar (opcional)" })
   @IsOptional()
   @IsUUID()
   locationId?: string;
 
-  @ApiPropertyOptional({ description: 'ID del usuario responsable de las obligaciones' })
+  @ApiPropertyOptional({
+    description: "ID del usuario responsable de las obligaciones",
+  })
   @IsOptional()
   @IsUUID()
   ownerUserId?: string;
 }
 
 export class ApplyTemplatesResultDto {
-  @ApiProperty({ description: 'Cantidad de obligaciones creadas' })
+  @ApiProperty({ description: "Cantidad de obligaciones creadas" })
   obligationsCreated: number;
 
-  @ApiProperty({ description: 'Cantidad de tareas creadas' })
+  @ApiProperty({ description: "Cantidad de tareas creadas" })
   tasksCreated: number;
 
-  @ApiProperty({ description: 'IDs de las obligaciones creadas' })
+  @ApiProperty({ description: "IDs de las obligaciones creadas" })
   obligationIds: string[];
 }
 
 // Query DTO para buscar templates
 export class TemplateQueryDto {
-  @ApiPropertyOptional({ example: 'gastronomia' })
+  @ApiPropertyOptional({ example: "gastronomia" })
   @IsOptional()
   @IsString()
   rubric?: string;
@@ -283,10 +296,10 @@ export class TemplateQueryDto {
 
 // DTO para listar rubros disponibles
 export class RubricDto {
-  @ApiProperty({ example: 'gastronomia' })
+  @ApiProperty({ example: "gastronomia" })
   rubric: string;
 
-  @ApiProperty({ example: 'Gastronomia' })
+  @ApiProperty({ example: "Gastronomia" })
   displayName: string;
 
   @ApiProperty({ example: 6 })

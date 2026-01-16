@@ -29,12 +29,16 @@ interface RequestOptions extends RequestInit {
 }
 
 class ApiError extends Error {
+  public errors?: Array<{ field?: string; message: string }>;
+
   constructor(
     public statusCode: number,
     message: string,
-    public errors?: Array<{ code: string; message: string; field?: string }>
+    public code?: string,
+    public details?: Array<{ field?: string; message: string }>
   ) {
     super(message);
+    this.errors = details;
     this.name = 'ApiError';
   }
 }
@@ -42,6 +46,20 @@ class ApiError extends Error {
 // Track if we're currently refreshing to avoid multiple refresh calls
 let isRefreshing = false;
 let refreshPromise: Promise<string | null> | null = null;
+
+function unwrapApiResponse<T>(payload: unknown): T {
+  if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+    const record = payload as Record<string, unknown>;
+    if ('data' in record) {
+      // Paginated responses already include meta; keep them intact.
+      if ('meta' in record) {
+        return payload as T;
+      }
+      return record.data as T;
+    }
+  }
+  return payload as T;
+}
 
 /**
  * Attempt to refresh the access token using the httpOnly refresh cookie
@@ -66,8 +84,9 @@ async function refreshAccessToken(): Promise<string | null> {
     }
 
     const data = await response.json();
-    store.setAuth(data.user, data.accessToken);
-    return data.accessToken;
+    const payload = unwrapApiResponse<AuthResponse>(data);
+    store.setAuth(payload.user, payload.accessToken);
+    return payload.accessToken;
   } catch {
     store.logout();
     return null;
@@ -143,6 +162,12 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   const data = await response.json();
 
   if (!response.ok) {
+    const payloadError =
+      data && typeof data === 'object' && 'error' in data
+        ? (data as { error?: { code?: string; message?: string; details?: Array<{ field?: string; message: string }> } }).error
+        : undefined;
+    const message = payloadError?.message || (data as { message?: string })?.message || 'Error en la solicitud';
+    const details = payloadError?.details || (data as { errors?: Array<{ field?: string; message: string }> })?.errors;
     // If 401 and we have a refresh token, try to refresh and retry
     if (response.status === 401 && !skipAuth && !__retried) {
       const newToken = await refreshAccessToken();
@@ -151,10 +176,10 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
         return request(endpoint, { ...options, skipAuth: false, __retried: true });
       }
     }
-    throw new ApiError(response.status, data.message || 'Error en la solicitud', data.errors);
+    throw new ApiError(response.status, message, payloadError?.code, details);
   }
 
-  return data;
+  return unwrapApiResponse<T>(data);
 }
 
 // Auth
@@ -175,6 +200,24 @@ export const auth = {
       {
         method: 'POST',
         body: JSON.stringify({ email, fullName, password }),
+        skipAuth: true,
+      }
+    ),
+  forgotPassword: (email: string) =>
+    request<{ message: string }>(
+      '/auth/forgot-password',
+      {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+        skipAuth: true,
+      }
+    ),
+  resetPassword: (token: string, newPassword: string) =>
+    request<{ message: string }>(
+      '/auth/reset-password',
+      {
+        method: 'POST',
+        body: JSON.stringify({ token, newPassword }),
         skipAuth: true,
       }
     ),

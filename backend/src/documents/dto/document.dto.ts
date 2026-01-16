@@ -1,36 +1,49 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsUUID, IsInt, Min, MaxLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import {
+  IsString,
+  IsOptional,
+  IsUUID,
+  IsInt,
+  Min,
+  MaxLength,
+} from "class-validator";
 
 export class GetUploadUrlDto {
-  @ApiProperty({ example: 'documento.pdf' })
+  @ApiProperty({ example: "documento.pdf" })
   @IsString()
   @MaxLength(255)
   fileName: string;
 
-  @ApiProperty({ example: 'application/pdf' })
+  @ApiProperty({ example: "application/pdf" })
   @IsString()
   @MaxLength(100)
   mimeType: string;
 }
 
 export class RegisterDocumentDto {
-  @ApiProperty({ example: 'documento.pdf' })
+  @ApiProperty({ example: "documento.pdf" })
   @IsString()
   @MaxLength(255)
   fileName: string;
 
-  @ApiProperty({ example: 'org/<orgId>/docs/123_documento.pdf' })
+  @ApiProperty({ example: "org/<orgId>/docs/123_documento.pdf" })
   @IsString()
   @MaxLength(500)
   fileKey: string;
 
-  @ApiPropertyOptional({ example: 'application/pdf', description: 'Opcional: se valida contra metadata del objeto' })
+  @ApiPropertyOptional({
+    example: "application/pdf",
+    description: "Opcional: se valida contra metadata del objeto",
+  })
   @IsOptional()
   @IsString()
   @MaxLength(100)
   mimeType?: string;
 
-  @ApiPropertyOptional({ description: 'Opcional: no se confía (se valida contra metadata del objeto)' })
+  @ApiPropertyOptional({
+    description:
+      "Opcional: no se confía (se valida contra metadata del objeto)",
+  })
   @IsOptional()
   @IsInt()
   @Min(0)

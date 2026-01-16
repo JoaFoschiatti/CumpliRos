@@ -1,6 +1,6 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsUUID, IsEnum } from 'class-validator';
-import { ReviewStatus } from '@prisma/client';
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsString, IsOptional, IsUUID, IsEnum } from "class-validator";
+import { ReviewStatus } from "@prisma/client";
 
 export class CreateReviewDto {
   @ApiProperty()
@@ -11,7 +11,7 @@ export class CreateReviewDto {
   @IsEnum(ReviewStatus)
   status: ReviewStatus;
 
-  @ApiPropertyOptional({ description: 'Requerido si el estado es REJECTED' })
+  @ApiPropertyOptional({ description: "Requerido si el estado es REJECTED" })
   @IsOptional()
   @IsString()
   comment?: string;

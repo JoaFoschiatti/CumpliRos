@@ -1,8 +1,13 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { Role } from '@prisma/client';
-import { ROLES_KEY } from '../decorators/roles.decorator';
-import { AuthenticatedRequest } from '../interfaces/request.interface';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { Role } from "@prisma/client";
+import { ROLES_KEY } from "../decorators/roles.decorator";
+import { AuthenticatedRequest } from "../interfaces/request.interface";
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -22,13 +27,16 @@ export class RolesGuard implements CanActivate {
     const userRole = request.organization?.role;
 
     if (!userRole) {
-      throw new ForbiddenException('No tienes acceso a esta organización');
+      throw new ForbiddenException("No tienes acceso a esta organización");
     }
 
+    // Validate role against the required list for the route.
     const hasRole = requiredRoles.includes(userRole);
 
     if (!hasRole) {
-      throw new ForbiddenException('No tienes permisos suficientes para esta acción');
+      throw new ForbiddenException(
+        "No tienes permisos suficientes para esta acción",
+      );
     }
 
     return true;

@@ -9,6 +9,20 @@ export interface EmailOptions {
   text?: string;
 }
 
+/**
+ * SECURITY: Escape HTML special characters to prevent XSS in email templates
+ */
+function escapeHtml(text: string): string {
+  const htmlEscapes: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return text.replace(/[&<>"']/g, (char) => htmlEscapes[char]);
+}
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -79,19 +93,23 @@ export class EmailService {
     obligations: Array<{ title: string; daysUntilDue: number }>,
     urgentCount: number,
   ): Promise<boolean> {
+    // SECURITY: Sanitize all user-provided values
+    const safeRecipientName = escapeHtml(recipientName);
+    const safeOrgName = escapeHtml(organizationName);
+
     const subject = urgentCount > 0
       ? `[URGENTE] ${urgentCount} obligaciones próximas a vencer - ${organizationName}`
       : `${obligations.length} obligaciones próximas a vencer - ${organizationName}`;
 
     const obligationsList = obligations
-      .map((o) => `<li><strong>${o.title}</strong> - vence en ${o.daysUntilDue} días</li>`)
+      .map((o) => `<li><strong>${escapeHtml(o.title)}</strong> - vence en ${o.daysUntilDue} días</li>`)
       .join('\n');
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1a1a1a;">Hola ${recipientName},</h2>
+        <h2 style="color: #1a1a1a;">Hola ${safeRecipientName},</h2>
 
-        <p>Tienes <strong>${obligations.length}</strong> obligación(es) próxima(s) a vencer en <strong>${organizationName}</strong>:</p>
+        <p>Tienes <strong>${obligations.length}</strong> obligación(es) próxima(s) a vencer en <strong>${safeOrgName}</strong>:</p>
 
         <ul style="background: #f5f5f5; padding: 20px; border-radius: 8px; list-style: none;">
           ${obligationsList}
@@ -119,17 +137,20 @@ export class EmailService {
     organizationName: string,
     obligations: Array<{ title: string; ownerName: string }>,
   ): Promise<boolean> {
+    // SECURITY: Sanitize all user-provided values
+    const safeOrgName = escapeHtml(organizationName);
+
     const subject = `[VENCIDO] ${obligations.length} obligaciones vencidas - ${organizationName}`;
 
     const obligationsList = obligations
-      .map((o) => `<li><strong>${o.title}</strong> - responsable: ${o.ownerName}</li>`)
+      .map((o) => `<li><strong>${escapeHtml(o.title)}</strong> - responsable: ${escapeHtml(o.ownerName)}</li>`)
       .join('\n');
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #dc2626;">⚠️ Alerta: Obligaciones Vencidas</h2>
 
-        <p>Hay <strong>${obligations.length}</strong> obligación(es) vencida(s) en <strong>${organizationName}</strong>:</p>
+        <p>Hay <strong>${obligations.length}</strong> obligación(es) vencida(s) en <strong>${safeOrgName}</strong>:</p>
 
         <ul style="background: #fef2f2; padding: 20px; border-radius: 8px; list-style: none; border-left: 4px solid #dc2626;">
           ${obligationsList}
@@ -158,17 +179,22 @@ export class EmailService {
     organizationName: string,
     obligationTitle: string,
   ): Promise<boolean> {
+    // SECURITY: Sanitize all user-provided values
+    const safeReviewerName = escapeHtml(reviewerName);
+    const safeOrgName = escapeHtml(organizationName);
+    const safeObligationTitle = escapeHtml(obligationTitle);
+
     const subject = `Revisión requerida: ${obligationTitle} - ${organizationName}`;
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1a1a1a;">Hola ${reviewerName},</h2>
+        <h2 style="color: #1a1a1a;">Hola ${safeReviewerName},</h2>
 
         <p>Se requiere tu revisión para la siguiente obligación:</p>
 
         <div style="background: #f0f9ff; padding: 20px; border-radius: 8px; border-left: 4px solid #0284c7;">
-          <p><strong>Obligación:</strong> ${obligationTitle}</p>
-          <p><strong>Organización:</strong> ${organizationName}</p>
+          <p><strong>Obligación:</strong> ${safeObligationTitle}</p>
+          <p><strong>Organización:</strong> ${safeOrgName}</p>
         </div>
 
         <p>Por favor, accede al panel de cumplimiento para revisar y aprobar o rechazar.</p>
@@ -196,18 +222,25 @@ export class EmailService {
     reviewerName: string,
     comment: string,
   ): Promise<boolean> {
+    // SECURITY: Sanitize all user-provided values
+    const safeOwnerName = escapeHtml(ownerName);
+    const safeOrgName = escapeHtml(organizationName);
+    const safeObligationTitle = escapeHtml(obligationTitle);
+    const safeReviewerName = escapeHtml(reviewerName);
+    const safeComment = escapeHtml(comment);
+
     const subject = `Revisión rechazada: ${obligationTitle} - ${organizationName}`;
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1a1a1a;">Hola ${ownerName},</h2>
+        <h2 style="color: #1a1a1a;">Hola ${safeOwnerName},</h2>
 
         <p>La revisión de la siguiente obligación ha sido rechazada:</p>
 
         <div style="background: #fef2f2; padding: 20px; border-radius: 8px; border-left: 4px solid #dc2626;">
-          <p><strong>Obligación:</strong> ${obligationTitle}</p>
-          <p><strong>Revisado por:</strong> ${reviewerName}</p>
-          <p><strong>Observaciones:</strong> ${comment}</p>
+          <p><strong>Obligación:</strong> ${safeObligationTitle}</p>
+          <p><strong>Revisado por:</strong> ${safeReviewerName}</p>
+          <p><strong>Observaciones:</strong> ${safeComment}</p>
         </div>
 
         <p>Por favor, corrige las observaciones y vuelve a enviar para revisión.</p>
@@ -235,7 +268,13 @@ export class EmailService {
     inviteToken: string,
     baseUrl: string,
   ): Promise<boolean> {
-    const inviteUrl = `${baseUrl}/auth/accept-invitation?token=${inviteToken}`;
+    // SECURITY: Sanitize all user-provided values
+    const safeOrgName = escapeHtml(organizationName);
+    const safeInviterName = escapeHtml(inviterName);
+
+    // SECURITY: URL encode the token to prevent injection
+    const safeToken = encodeURIComponent(inviteToken);
+    const inviteUrl = `${baseUrl}/auth/accept-invitation?token=${safeToken}`;
     const subject = `Invitación a ${organizationName} - CumpliRos`;
 
     const roleLabels: Record<string, string> = {
@@ -245,13 +284,13 @@ export class EmailService {
       MANAGER: 'Encargado',
     };
 
-    const roleLabel = roleLabels[role] || role;
+    const roleLabel = roleLabels[role] || escapeHtml(role);
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #1a1a1a;">Has sido invitado a CumpliRos</h2>
 
-        <p><strong>${inviterName}</strong> te ha invitado a unirte a <strong>${organizationName}</strong> como <strong>${roleLabel}</strong>.</p>
+        <p><strong>${safeInviterName}</strong> te ha invitado a unirte a <strong>${safeOrgName}</strong> como <strong>${roleLabel}</strong>.</p>
 
         <div style="background: #f0f9ff; padding: 20px; border-radius: 8px; text-align: center; margin: 30px 0;">
           <p>CumpliRos es una plataforma para gestionar obligaciones municipales de comercios y PyMEs.</p>
@@ -262,7 +301,7 @@ export class EmailService {
 
         <p style="color: #666; font-size: 14px;">
           Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
-          <a href="${inviteUrl}" style="color: #0284c7;">${inviteUrl}</a>
+          <a href="${inviteUrl}" style="color: #0284c7;">${escapeHtml(inviteUrl)}</a>
         </p>
 
         <p style="color: #666; font-size: 14px;">

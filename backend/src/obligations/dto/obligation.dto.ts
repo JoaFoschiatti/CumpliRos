@@ -23,6 +23,7 @@ export class CreateObligationDto {
   @ApiPropertyOptional({ example: 'Renovación anual de habilitación municipal' })
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   description?: string;
 
   @ApiProperty({ enum: ObligationType })

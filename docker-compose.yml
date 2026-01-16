@@ -1,3 +1,7 @@
+# CumpliRos Docker Compose
+# SECURITY: Copy .env.docker.example to .env.docker and configure credentials
+# For development, default values are used if not specified
+
 version: '3.8'
 
 services:
@@ -5,15 +9,15 @@ services:
     image: postgres:15-alpine
     container_name: cumpliros-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: cumpliros
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_dev_only}
+      POSTGRES_DB: ${POSTGRES_DB:-cumpliros}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -21,8 +25,9 @@ services:
   redis:
     image: redis:7-alpine
     container_name: cumpliros-redis
+    command: redis-server ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -36,11 +41,11 @@ services:
     container_name: cumpliros-minio
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio_dev_user}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_dev_password}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio_data:/data
     healthcheck:

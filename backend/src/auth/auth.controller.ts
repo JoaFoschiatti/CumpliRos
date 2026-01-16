@@ -19,6 +19,7 @@ import {
   RegisterDto,
   LoginDto,
   RefreshTokenDto,
+  LogoutDto,
   ChangePasswordDto,
   AcceptInvitationDto,
   AuthResponseDto,
@@ -78,9 +79,10 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cerrar sesión' })
   @ApiResponse({ status: 204, description: 'Sesión cerrada' })
+  @ApiResponse({ status: 400, description: 'Token de refresco requerido' })
   async logout(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: RefreshTokenDto,
+    @Body() dto: LogoutDto,
   ): Promise<void> {
     await this.authService.logout(user.id, dto.refreshToken);
   }

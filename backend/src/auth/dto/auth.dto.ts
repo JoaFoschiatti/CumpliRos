@@ -7,6 +7,7 @@ import {
   Matches,
   IsOptional,
   IsUUID,
+  IsNotEmpty,
 } from 'class-validator';
 
 export class RegisterDto {
@@ -42,8 +43,16 @@ export class LoginDto {
 }
 
 export class RefreshTokenDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'Token de refresco para renovar el acceso' })
   @IsString()
+  @IsNotEmpty({ message: 'El token de refresco es requerido' })
+  refreshToken: string;
+}
+
+export class LogoutDto {
+  @ApiProperty({ description: 'Token de refresco a invalidar' })
+  @IsString()
+  @IsNotEmpty({ message: 'El token de refresco es requerido para cerrar sesión' })
   refreshToken: string;
 }
 

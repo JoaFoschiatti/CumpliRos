@@ -4,6 +4,7 @@ import {
   ConflictException,
   BadRequestException,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -22,6 +23,8 @@ import {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
@@ -54,20 +57,32 @@ export class AuthService {
   }
 
   async login(dto: LoginDto): Promise<AuthResponseDto> {
+    const email = dto.email.toLowerCase();
     const user = await this.prisma.user.findUnique({
-      where: { email: dto.email.toLowerCase() },
+      where: { email },
     });
 
-    if (!user || !user.active) {
+    if (!user) {
+      // SECURITY: Log failed login attempt - user not found
+      this.logger.warn(`Failed login attempt: user not found - email: ${email}`);
+      throw new UnauthorizedException('Credenciales inválidas');
+    }
+
+    if (!user.active) {
+      // SECURITY: Log failed login attempt - inactive user
+      this.logger.warn(`Failed login attempt: inactive user - email: ${email}, userId: ${user.id}`);
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
     const isPasswordValid = await argon2.verify(user.passwordHash, dto.password);
 
     if (!isPasswordValid) {
+      // SECURITY: Log failed login attempt - invalid password
+      this.logger.warn(`Failed login attempt: invalid password - email: ${email}, userId: ${user.id}`);
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
+    this.logger.log(`Successful login - email: ${email}, userId: ${user.id}`);
     return this.generateTokens(user);
   }
 

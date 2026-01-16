@@ -1,10 +1,48 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 
+/**
+ * SECURITY: Validate that critical secrets are properly configured
+ * Prevents deployment with insecure default values
+ */
+function validateSecurityConfig(): void {
+  const logger = new Logger('SecurityConfig');
+  const jwtSecret = process.env.JWT_SECRET || '';
+  const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET || '';
+
+  const insecurePatterns = ['CHANGE_ME', 'secret', 'password', '123456', 'default'];
+
+  const isInsecure = (value: string): boolean => {
+    if (value.length < 32) return true;
+    return insecurePatterns.some(pattern =>
+      value.toLowerCase().includes(pattern.toLowerCase())
+    );
+  };
+
+  if (process.env.NODE_ENV === 'production') {
+    if (isInsecure(jwtSecret)) {
+      logger.error('FATAL: JWT_SECRET is insecure or not configured. Use: openssl rand -base64 32');
+      process.exit(1);
+    }
+    if (isInsecure(jwtRefreshSecret)) {
+      logger.error('FATAL: JWT_REFRESH_SECRET is insecure or not configured. Use: openssl rand -base64 32');
+      process.exit(1);
+    }
+    logger.log('Security configuration validated successfully');
+  } else {
+    if (isInsecure(jwtSecret) || isInsecure(jwtRefreshSecret)) {
+      logger.warn('WARNING: Using insecure JWT secrets. This is acceptable only for development.');
+    }
+  }
+}
+
 async function bootstrap() {
+  // Validate security configuration before starting
+  validateSecurityConfig();
+
   const app = await NestFactory.create(AppModule);
 
   // Security

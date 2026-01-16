@@ -1,2 +1,1 @@
-# CumpliRos
-SaaS/PWA para gestionar vencimientos, documentación y cumplimiento municipal (habilitaciones, DDJJ, tributos) de comercios y pymes, con colaboración dueño–contador–gestor.
+CumpliRos es una plataforma web (PWA) orientada a comercios y pymes con local físico en Rosario, Santa Fe (Argentina). Centraliza obligaciones y vencimientos (por CUIT y por local), genera tareas y checklists, almacena evidencias/documentación, y habilita un flujo colaborativo entre Dueño, Administrativo, Contador y Gestor. Incluye tablero con semáforo de riesgo, calendario de vencimientos, auditoría de cambios, reportes básicos y notificaciones configurables para reducir olvidos y minimizar riesgos operativos.

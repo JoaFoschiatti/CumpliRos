@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
+import { AuditService } from '../audit/audit.service';
+import { AuditActions } from '../audit/dto/audit.dto';
 import { DocumentResponseDto, DocumentFilterDto } from './dto/document.dto';
 import { PaginationDto, createPaginatedResponse, PaginatedResponse } from '../common/dto/pagination.dto';
 
@@ -28,12 +30,13 @@ export class DocumentsService {
   constructor(
     private prisma: PrismaService,
     private storageService: StorageService,
+    private auditService: AuditService,
   ) {}
 
   async create(
     organizationId: string,
     userId: string,
-    file: { fileName: string; mimeType: string; sizeBytes: number; fileKey: string },
+    file: { fileName: string; fileKey: string; mimeType?: string; sizeBytes?: number },
     obligationId?: string,
     taskId?: string,
   ): Promise<DocumentResponseDto> {
@@ -44,23 +47,58 @@ export class DocumentsService {
       throw new ForbiddenException('El archivo no pertenece a esta organización');
     }
 
-    // Validate MIME type
-    if (!ALLOWED_MIME_TYPES.includes(file.mimeType)) {
+    // Verify uploaded object exists and validate against real metadata (do not trust client values)
+    let objectMeta: { sizeBytes: number; mimeType?: string };
+    try {
+      objectMeta = await this.storageService.getObjectMetadata(file.fileKey);
+    } catch (error: any) {
+      this.logger.warn(`Could not read object metadata for ${file.fileKey}: ${error.message}`);
+      throw new BadRequestException('No se encontró el archivo subido o no es accesible');
+    }
+
+    const actualMimeType = objectMeta.mimeType || file.mimeType;
+    if (!actualMimeType) {
+      throw new BadRequestException('No se pudo determinar el tipo de archivo');
+    }
+
+    // Validate MIME type (based on actual object metadata when possible)
+    if (!ALLOWED_MIME_TYPES.includes(actualMimeType)) {
+      // Best-effort cleanup: remove invalid upload
+      try {
+        await this.storageService.deleteFile(file.fileKey);
+      } catch (cleanupError: any) {
+        this.logger.warn(`Could not cleanup invalid upload ${file.fileKey}: ${cleanupError.message}`);
+      }
       throw new BadRequestException('Tipo de archivo no permitido');
+    }
+
+    // If client declared a MIME type, ensure it matches the stored object metadata
+    if (file.mimeType && objectMeta.mimeType && file.mimeType !== objectMeta.mimeType) {
+      this.logger.warn(
+        `Security: MIME type mismatch. Declared: ${file.mimeType}, Stored: ${objectMeta.mimeType}, Key: ${file.fileKey}`,
+      );
+      throw new BadRequestException('El tipo de archivo no coincide con el declarado');
     }
 
     // SECURITY: Validate file extension matches declared MIME type
     const fileExtension = this.getFileExtension(file.fileName);
-    const allowedExtensions = MIME_TYPE_EXTENSIONS[file.mimeType] || [];
+    const allowedExtensions = MIME_TYPE_EXTENSIONS[actualMimeType] || [];
     if (!allowedExtensions.includes(fileExtension)) {
       this.logger.warn(
-        `Security: File extension mismatch. MIME: ${file.mimeType}, Extension: ${fileExtension}, File: ${file.fileName}`,
+        `Security: File extension mismatch. MIME: ${actualMimeType}, Extension: ${fileExtension}, File: ${file.fileName}`,
       );
       throw new BadRequestException('La extensión del archivo no coincide con el tipo declarado');
     }
 
     // Validate file size
-    if (file.sizeBytes > MAX_FILE_SIZE) {
+    const actualSize = objectMeta.sizeBytes;
+    if (actualSize > MAX_FILE_SIZE) {
+      // Best-effort cleanup: remove oversized upload
+      try {
+        await this.storageService.deleteFile(file.fileKey);
+      } catch (cleanupError: any) {
+        this.logger.warn(`Could not cleanup oversized upload ${file.fileKey}: ${cleanupError.message}`);
+      }
       throw new BadRequestException('El archivo excede el tamaño máximo permitido (10 MB)');
     }
 
@@ -92,13 +130,29 @@ export class DocumentsService {
         uploadedByUserId: userId,
         fileName: file.fileName,
         fileKey: file.fileKey,
-        mimeType: file.mimeType,
-        sizeBytes: file.sizeBytes,
+        mimeType: actualMimeType,
+        sizeBytes: actualSize,
       },
       include: {
         uploadedBy: { select: { id: true, fullName: true, email: true } },
       },
     });
+
+    await this.auditService.log(
+      organizationId,
+      AuditActions.DOCUMENT_UPLOADED,
+      'Document',
+      document.id,
+      userId,
+      {
+        fileName: document.fileName,
+        fileKey: document.fileKey,
+        mimeType: document.mimeType,
+        sizeBytes: document.sizeBytes,
+        obligationId: document.obligationId ?? undefined,
+        taskId: document.taskId ?? undefined,
+      },
+    );
 
     return this.enrichDocument(document);
   }
@@ -130,7 +184,7 @@ export class DocumentsService {
       this.prisma.document.count({ where }),
     ]);
 
-    const enrichedDocs = documents.map((d) => this.enrichDocument(d));
+    const enrichedDocs = await Promise.all(documents.map((d) => this.enrichDocument(d)));
 
     return createPaginatedResponse(enrichedDocs, total, pagination.page!, pagination.limit!);
   }
@@ -150,7 +204,7 @@ export class DocumentsService {
     return this.enrichDocument(document, true);
   }
 
-  async delete(organizationId: string, documentId: string): Promise<void> {
+  async delete(organizationId: string, documentId: string, userId?: string): Promise<void> {
     const document = await this.prisma.document.findFirst({
       where: { id: documentId, organizationId },
     });
@@ -171,6 +225,15 @@ export class DocumentsService {
     await this.prisma.document.delete({
       where: { id: documentId },
     });
+
+    await this.auditService.log(
+      organizationId,
+      AuditActions.DOCUMENT_DELETED,
+      'Document',
+      documentId,
+      userId,
+      { fileName: document.fileName, fileKey: document.fileKey },
+    );
   }
 
   async getUploadUrl(
@@ -181,6 +244,13 @@ export class DocumentsService {
     // Validate MIME type
     if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
       throw new BadRequestException('Tipo de archivo no permitido');
+    }
+
+    // SECURITY: Validate file extension matches declared MIME type early
+    const fileExtension = this.getFileExtension(fileName);
+    const allowedExtensions = MIME_TYPE_EXTENSIONS[mimeType] || [];
+    if (!allowedExtensions.includes(fileExtension)) {
+      throw new BadRequestException('La extensión del archivo no coincide con el tipo declarado');
     }
 
     // Generate unique file key

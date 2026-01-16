@@ -42,9 +42,10 @@ export class LoginDto {
 }
 
 export class RefreshTokenDto {
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  refreshToken: string;
+  refreshToken?: string;
 }
 
 export class ForgotPasswordDto {
@@ -108,8 +109,10 @@ export class AuthResponseDto {
   @ApiProperty()
   accessToken: string;
 
-  @ApiProperty()
-  refreshToken: string;
+  @ApiPropertyOptional({ description: 'Deprecated: usar cookie httpOnly (cumpliros_refresh)' })
+  @IsOptional()
+  @IsString()
+  refreshToken?: string;
 
   @ApiProperty()
   user: {

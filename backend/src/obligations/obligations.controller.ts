@@ -33,6 +33,8 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { OrganizationGuard } from '../common/guards/organization.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { AuthenticatedUser } from '../common/interfaces/request.interface';
 
 @ApiTags('obligations')
 @ApiBearerAuth()
@@ -50,8 +52,9 @@ export class ObligationsController {
   async create(
     @Param('organizationId') organizationId: string,
     @Body() dto: CreateObligationDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<ObligationResponseDto> {
-    return this.obligationsService.create(organizationId, dto);
+    return this.obligationsService.create(organizationId, dto, user.id);
   }
 
   @Get()
@@ -117,11 +120,14 @@ export class ObligationsController {
     @Param('organizationId') organizationId: string,
     @Param('obligationId') obligationId: string,
     @Body() dto: UpdateObligationDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<ObligationResponseDto> {
-    return this.obligationsService.update(organizationId, obligationId, dto);
+    return this.obligationsService.update(organizationId, obligationId, dto, user.id);
   }
 
   @Patch(':obligationId/status')
+  @UseGuards(RolesGuard)
+  @Roles(Role.OWNER, Role.ADMIN, Role.MANAGER, Role.ACCOUNTANT)
   @ApiOperation({ summary: 'Cambiar estado de obligación' })
   @ApiParam({ name: 'organizationId', type: 'string' })
   @ApiParam({ name: 'obligationId', type: 'string' })
@@ -131,8 +137,9 @@ export class ObligationsController {
     @Param('organizationId') organizationId: string,
     @Param('obligationId') obligationId: string,
     @Query('status') status: ObligationStatus,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<ObligationResponseDto> {
-    return this.obligationsService.updateStatus(organizationId, obligationId, status);
+    return this.obligationsService.updateStatus(organizationId, obligationId, status, user.id);
   }
 
   @Delete(':obligationId')
@@ -146,7 +153,8 @@ export class ObligationsController {
   async delete(
     @Param('organizationId') organizationId: string,
     @Param('obligationId') obligationId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
-    await this.obligationsService.delete(organizationId, obligationId);
+    await this.obligationsService.delete(organizationId, obligationId, user.id);
   }
 }

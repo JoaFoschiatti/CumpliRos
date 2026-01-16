@@ -37,11 +37,11 @@ export class LocationResponseDto {
   @ApiProperty()
   name: string;
 
-  @ApiPropertyOptional()
-  address?: string;
+  @ApiPropertyOptional({ nullable: true })
+  address?: string | null;
 
-  @ApiPropertyOptional()
-  rubric?: string;
+  @ApiPropertyOptional({ nullable: true })
+  rubric?: string | null;
 
   @ApiProperty()
   active: boolean;

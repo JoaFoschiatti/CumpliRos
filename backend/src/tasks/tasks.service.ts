@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { TaskStatus } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
+import { AuditActions } from '../audit/dto/audit.dto';
 import {
   CreateTaskDto,
   UpdateTaskDto,
@@ -13,7 +15,10 @@ import { PaginationDto, createPaginatedResponse, PaginatedResponse } from '../co
 
 @Injectable()
 export class TasksService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
   private calculateProgress(items: { done: boolean }[]): number {
     if (items.length === 0) return 0;
@@ -32,7 +37,7 @@ export class TasksService {
     };
   }
 
-  async create(organizationId: string, dto: CreateTaskDto): Promise<TaskResponseDto> {
+  async create(organizationId: string, dto: CreateTaskDto, userId?: string): Promise<TaskResponseDto> {
     // Verify obligation belongs to organization
     const obligation = await this.prisma.obligation.findFirst({
       where: { id: dto.obligationId, organizationId },
@@ -74,6 +79,19 @@ export class TasksService {
         items: { orderBy: { order: 'asc' } },
       },
     });
+
+    await this.auditService.log(
+      organizationId,
+      AuditActions.TASK_CREATED,
+      'Task',
+      task.id,
+      userId,
+      {
+        title: task.title,
+        obligationId: task.obligationId,
+        assignedToUserId: task.assignedToUserId ?? undefined,
+      },
+    );
 
     return this.enrichTask(task);
   }
@@ -141,7 +159,7 @@ export class TasksService {
     return this.enrichTask(task);
   }
 
-  async update(organizationId: string, taskId: string, dto: UpdateTaskDto): Promise<TaskResponseDto> {
+  async update(organizationId: string, taskId: string, dto: UpdateTaskDto, userId?: string): Promise<TaskResponseDto> {
     const existing = await this.prisma.task.findFirst({
       where: {
         id: taskId,
@@ -173,10 +191,21 @@ export class TasksService {
       },
     });
 
+    const action =
+      dto.status === TaskStatus.COMPLETED ? AuditActions.TASK_COMPLETED : AuditActions.TASK_UPDATED;
+    await this.auditService.log(
+      organizationId,
+      action,
+      'Task',
+      taskId,
+      userId,
+      { changes: dto },
+    );
+
     return this.enrichTask(task);
   }
 
-  async delete(organizationId: string, taskId: string): Promise<void> {
+  async delete(organizationId: string, taskId: string, userId?: string): Promise<void> {
     const task = await this.prisma.task.findFirst({
       where: {
         id: taskId,
@@ -191,10 +220,24 @@ export class TasksService {
     await this.prisma.task.delete({
       where: { id: taskId },
     });
+
+    await this.auditService.log(
+      organizationId,
+      AuditActions.TASK_DELETED,
+      'Task',
+      taskId,
+      userId,
+      { title: task.title, obligationId: task.obligationId },
+    );
   }
 
   // Task Items
-  async addItem(organizationId: string, taskId: string, dto: CreateTaskItemDto): Promise<TaskItemResponseDto> {
+  async addItem(
+    organizationId: string,
+    taskId: string,
+    dto: CreateTaskItemDto,
+    userId?: string,
+  ): Promise<TaskItemResponseDto> {
     const task = await this.prisma.task.findFirst({
       where: {
         id: taskId,
@@ -217,6 +260,15 @@ export class TasksService {
       },
     });
 
+    await this.auditService.log(
+      organizationId,
+      AuditActions.TASK_UPDATED,
+      'Task',
+      taskId,
+      userId,
+      { taskItem: { action: 'created', itemId: item.id } },
+    );
+
     return item;
   }
 
@@ -225,6 +277,7 @@ export class TasksService {
     taskId: string,
     itemId: string,
     dto: UpdateTaskItemDto,
+    userId?: string,
   ): Promise<TaskItemResponseDto> {
     const task = await this.prisma.task.findFirst({
       where: {
@@ -250,10 +303,19 @@ export class TasksService {
       data: dto,
     });
 
+    await this.auditService.log(
+      organizationId,
+      AuditActions.TASK_UPDATED,
+      'Task',
+      taskId,
+      userId,
+      { taskItem: { action: 'updated', itemId }, changes: dto },
+    );
+
     return updated;
   }
 
-  async deleteItem(organizationId: string, taskId: string, itemId: string): Promise<void> {
+  async deleteItem(organizationId: string, taskId: string, itemId: string, userId?: string): Promise<void> {
     const task = await this.prisma.task.findFirst({
       where: {
         id: taskId,
@@ -276,9 +338,23 @@ export class TasksService {
     await this.prisma.taskItem.delete({
       where: { id: itemId },
     });
+
+    await this.auditService.log(
+      organizationId,
+      AuditActions.TASK_UPDATED,
+      'Task',
+      taskId,
+      userId,
+      { taskItem: { action: 'deleted', itemId } },
+    );
   }
 
-  async toggleItem(organizationId: string, taskId: string, itemId: string): Promise<TaskItemResponseDto> {
+  async toggleItem(
+    organizationId: string,
+    taskId: string,
+    itemId: string,
+    userId?: string,
+  ): Promise<TaskItemResponseDto> {
     const task = await this.prisma.task.findFirst({
       where: {
         id: taskId,
@@ -302,6 +378,15 @@ export class TasksService {
       where: { id: itemId },
       data: { done: !item.done },
     });
+
+    await this.auditService.log(
+      organizationId,
+      AuditActions.TASK_UPDATED,
+      'Task',
+      taskId,
+      userId,
+      { taskItem: { action: 'toggled', itemId, done: updated.done } },
+    );
 
     return updated;
   }

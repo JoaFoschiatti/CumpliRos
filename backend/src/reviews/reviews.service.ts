@@ -1,12 +1,17 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { ReviewStatus, Role, ObligationStatus } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
+import { AuditActions } from '../audit/dto/audit.dto';
 import { CreateReviewDto, ReviewResponseDto } from './dto/review.dto';
 import { PaginationDto, createPaginatedResponse, PaginatedResponse } from '../common/dto/pagination.dto';
 
 @Injectable()
 export class ReviewsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
   async create(
     organizationId: string,
@@ -35,7 +40,7 @@ export class ReviewsService {
       throw new ForbiddenException('No tienes acceso a esta organización');
     }
 
-    const allowedRoles = [Role.OWNER, Role.ACCOUNTANT, Role.MANAGER];
+    const allowedRoles: Role[] = [Role.OWNER, Role.ACCOUNTANT, Role.MANAGER];
     if (!allowedRoles.includes(membership.role)) {
       throw new ForbiddenException('No tienes permisos para realizar revisiones');
     }
@@ -65,6 +70,26 @@ export class ReviewsService {
         data: { status: ObligationStatus.IN_PROGRESS },
       });
     }
+
+    const action =
+      dto.status === ReviewStatus.APPROVED
+        ? AuditActions.REVIEW_APPROVED
+        : dto.status === ReviewStatus.REJECTED
+          ? AuditActions.REVIEW_REJECTED
+          : AuditActions.REVIEW_SUBMITTED;
+
+    await this.auditService.log(
+      organizationId,
+      action,
+      'Review',
+      review.id,
+      reviewerUserId,
+      {
+        obligationId: dto.obligationId,
+        status: dto.status,
+        comment: dto.comment ?? undefined,
+      },
+    );
 
     return this.enrichReview(review);
   }

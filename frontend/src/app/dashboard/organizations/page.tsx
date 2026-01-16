@@ -7,7 +7,6 @@ import { organizations } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Building2, MapPin, FileCheck } from 'lucide-react';
-import { getRoleLabel } from '@/lib/utils';
 
 export default function OrganizationsPage() {
   const { setCurrentOrganization, currentOrganizationId } = useAuthStore();
@@ -58,7 +57,7 @@ export default function OrganizationsPage() {
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {orgList.map((org: any) => (
+          {orgList.map((org) => (
             <Card
               key={org.id}
               className={`cursor-pointer transition-colors hover:border-primary ${

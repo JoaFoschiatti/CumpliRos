@@ -83,8 +83,9 @@ export class OrganizationsController {
   async update(
     @Param('organizationId') organizationId: string,
     @Body() dto: UpdateOrganizationDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<OrganizationResponseDto> {
-    return this.organizationsService.update(organizationId, dto);
+    return this.organizationsService.update(organizationId, dto, user.id);
   }
 
   @Delete(':organizationId')
@@ -94,8 +95,11 @@ export class OrganizationsController {
   @ApiOperation({ summary: 'Desactivar organización' })
   @ApiParam({ name: 'organizationId', type: 'string' })
   @ApiResponse({ status: 204, description: 'Organización desactivada' })
-  async deactivate(@Param('organizationId') organizationId: string): Promise<void> {
-    await this.organizationsService.deactivate(organizationId);
+  async deactivate(
+    @Param('organizationId') organizationId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    await this.organizationsService.deactivate(organizationId, user.id);
   }
 
   @Get(':organizationId/stats')
@@ -150,8 +154,9 @@ export class OrganizationsController {
   async cancelInvitation(
     @Param('organizationId') organizationId: string,
     @Param('invitationId') invitationId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
-    await this.organizationsService.cancelInvitation(organizationId, invitationId);
+    await this.organizationsService.cancelInvitation(organizationId, invitationId, user.id);
   }
 
   @Patch(':organizationId/members/:memberId')

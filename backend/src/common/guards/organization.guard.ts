@@ -32,10 +32,19 @@ export class OrganizationGuard implements CanActivate {
           organizationId,
         },
       },
+      include: {
+        organization: {
+          select: { active: true },
+        },
+      },
     });
 
     if (!userOrg) {
       throw new ForbiddenException('No tienes acceso a esta organización');
+    }
+
+    if (!userOrg.organization.active) {
+      throw new ForbiddenException('La organización está desactivada');
     }
 
     // Attach organization context to request

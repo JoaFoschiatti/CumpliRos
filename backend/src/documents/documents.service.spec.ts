@@ -21,8 +21,13 @@ const mockPrismaService = {
 const mockStorageService = {
   getUploadUrl: vi.fn(),
   getDownloadUrl: vi.fn(),
+  getObjectMetadata: vi.fn(),
   deleteFile: vi.fn(),
   generateFileKey: vi.fn(),
+};
+
+const mockAuditService = {
+  log: vi.fn(),
 };
 
 describe('DocumentsService', () => {
@@ -30,7 +35,11 @@ describe('DocumentsService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new DocumentsService(mockPrismaService as any, mockStorageService as any);
+    service = new DocumentsService(
+      mockPrismaService as any,
+      mockStorageService as any,
+      mockAuditService as any,
+    );
   });
 
   describe('create', () => {
@@ -49,10 +58,13 @@ describe('DocumentsService', () => {
         organizationId,
         uploadedByUserId: userId,
         ...validFile,
+        mimeType: 'application/pdf',
+        sizeBytes: 1024,
         uploadedAt: new Date(),
         uploadedBy: { id: userId, fullName: 'Test User', email: 'test@test.com' },
       };
 
+      mockStorageService.getObjectMetadata.mockResolvedValue({ sizeBytes: 1024, mimeType: 'application/pdf' });
       mockPrismaService.document.create.mockResolvedValue(mockDocument);
 
       const result = await service.create(organizationId, userId, validFile);
@@ -64,6 +76,7 @@ describe('DocumentsService', () => {
     it('should throw BadRequestException for invalid MIME type', async () => {
       const invalidFile = { ...validFile, mimeType: 'application/exe' };
 
+      mockStorageService.getObjectMetadata.mockResolvedValue({ sizeBytes: 1024, mimeType: 'application/exe' });
       await expect(service.create(organizationId, userId, invalidFile)).rejects.toThrow(
         'Tipo de archivo no permitido',
       );
@@ -72,12 +85,14 @@ describe('DocumentsService', () => {
     it('should throw BadRequestException for file exceeding max size', async () => {
       const largeFile = { ...validFile, sizeBytes: 20 * 1024 * 1024 }; // 20MB
 
+      mockStorageService.getObjectMetadata.mockResolvedValue({ sizeBytes: 20 * 1024 * 1024, mimeType: 'application/pdf' });
       await expect(service.create(organizationId, userId, largeFile)).rejects.toThrow(
         'El archivo excede el tamaño máximo permitido (10 MB)',
       );
     });
 
     it('should validate obligation belongs to organization', async () => {
+      mockStorageService.getObjectMetadata.mockResolvedValue({ sizeBytes: 1024, mimeType: 'application/pdf' });
       mockPrismaService.obligation.findFirst.mockResolvedValue(null);
 
       await expect(
@@ -86,6 +101,7 @@ describe('DocumentsService', () => {
     });
 
     it('should validate task belongs to organization', async () => {
+      mockStorageService.getObjectMetadata.mockResolvedValue({ sizeBytes: 1024, mimeType: 'application/pdf' });
       mockPrismaService.task.findFirst.mockResolvedValue(null);
 
       await expect(

@@ -23,9 +23,19 @@ export function JurisdictionSelector({
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
+    if (jurisdictions.length > 0) {
+      if (!value) {
+        onChange(jurisdictions[0].id);
+      }
+      return;
+    }
+
+    let isMounted = true;
+
     async function loadJurisdictions() {
       try {
         const response = await api.get<JurisdictionSummary[]>('/jurisdictions');
+        if (!isMounted) return;
         setJurisdictions(response);
 
         // Seleccionar automaticamente si solo hay una o si no hay seleccion
@@ -35,11 +45,17 @@ export function JurisdictionSelector({
       } catch (err) {
         console.error('Error loading jurisdictions:', err);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
     loadJurisdictions();
-  }, []);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [jurisdictions, onChange, value]);
 
   // No mostrar si solo hay una jurisdiccion y showOnlyIfMultiple es true
   if (showOnlyIfMultiple && jurisdictions.length <= 1) {

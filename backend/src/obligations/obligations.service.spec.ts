@@ -25,12 +25,16 @@ const mockPrismaService = {
   },
 };
 
+const mockAuditService = {
+  log: vi.fn(),
+};
+
 describe('ObligationsService', () => {
   let service: ObligationsService;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new ObligationsService(mockPrismaService as any);
+    service = new ObligationsService(mockPrismaService as any, mockAuditService as any);
   });
 
   describe('calculateTrafficLight', () => {

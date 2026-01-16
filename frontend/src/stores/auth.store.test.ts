@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { useAuthStore } from './auth.store';
 import { act } from '@testing-library/react';
 
@@ -8,7 +8,6 @@ beforeEach(() => {
     useAuthStore.setState({
       user: null,
       accessToken: null,
-      refreshToken: null,
       organizations: [],
       currentOrganizationId: null,
     });
@@ -23,9 +22,8 @@ describe('useAuthStore', () => {
     });
 
     it('should have null tokens initially', () => {
-      const { accessToken, refreshToken } = useAuthStore.getState();
+      const { accessToken } = useAuthStore.getState();
       expect(accessToken).toBeNull();
-      expect(refreshToken).toBeNull();
     });
 
     it('should have empty organizations initially', () => {
@@ -35,19 +33,17 @@ describe('useAuthStore', () => {
   });
 
   describe('setAuth', () => {
-    it('should set user and tokens', () => {
+    it('should set user and access token', () => {
       const user = { id: 'user-1', email: 'test@test.com', fullName: 'Test User' };
       const accessToken = 'access-token';
-      const refreshToken = 'refresh-token';
 
       act(() => {
-        useAuthStore.getState().setAuth(user, accessToken, refreshToken);
+        useAuthStore.getState().setAuth(user, accessToken);
       });
 
       const state = useAuthStore.getState();
       expect(state.user).toEqual(user);
       expect(state.accessToken).toBe(accessToken);
-      expect(state.refreshToken).toBe(refreshToken);
     });
   });
 
@@ -125,7 +121,6 @@ describe('useAuthStore', () => {
         useAuthStore.setState({
           user: { id: 'user-1', email: 'test@test.com', fullName: 'Test' },
           accessToken: 'access-token',
-          refreshToken: 'refresh-token',
           organizations: [{ id: 'org-1', name: 'Org', cuit: '20-12345678-9', role: 'OWNER' as const }],
           currentOrganizationId: 'org-1',
         });
@@ -139,7 +134,6 @@ describe('useAuthStore', () => {
       const state = useAuthStore.getState();
       expect(state.user).toBeNull();
       expect(state.accessToken).toBeNull();
-      expect(state.refreshToken).toBeNull();
       expect(state.organizations).toEqual([]);
       expect(state.currentOrganizationId).toBeNull();
     });

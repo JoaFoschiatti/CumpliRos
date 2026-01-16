@@ -11,6 +11,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { EmailService } from '../common/email/email.service';
 import { Role } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
+import { AuditActions } from '../audit/dto/audit.dto';
 import {
   CreateOrganizationDto,
   UpdateOrganizationDto,
@@ -30,6 +32,7 @@ export class OrganizationsService {
     private prisma: PrismaService,
     private emailService: EmailService,
     private configService: ConfigService,
+    private auditService: AuditService,
   ) {}
 
   async create(userId: string, dto: CreateOrganizationDto): Promise<OrganizationResponseDto> {
@@ -76,6 +79,15 @@ export class OrganizationsService {
         },
       },
     });
+
+    await this.auditService.log(
+      organization.id,
+      AuditActions.ORGANIZATION_CREATED,
+      'Organization',
+      organization.id,
+      userId,
+      { cuit: organization.cuit, name: organization.name, plan: organization.plan },
+    );
 
     return organization;
   }
@@ -129,7 +141,7 @@ export class OrganizationsService {
     return organization;
   }
 
-  async update(organizationId: string, dto: UpdateOrganizationDto): Promise<OrganizationResponseDto> {
+  async update(organizationId: string, dto: UpdateOrganizationDto, userId?: string): Promise<OrganizationResponseDto> {
     // Check if CUIT is being changed and already exists
     if (dto.cuit) {
       const existing = await this.prisma.organization.findFirst({
@@ -157,14 +169,31 @@ export class OrganizationsService {
       },
     });
 
+    await this.auditService.log(
+      organizationId,
+      AuditActions.ORGANIZATION_UPDATED,
+      'Organization',
+      organizationId,
+      userId,
+      { changes: dto },
+    );
+
     return organization;
   }
 
-  async deactivate(organizationId: string): Promise<void> {
+  async deactivate(organizationId: string, userId?: string): Promise<void> {
     await this.prisma.organization.update({
       where: { id: organizationId },
       data: { active: false },
     });
+
+    await this.auditService.log(
+      organizationId,
+      AuditActions.ORGANIZATION_DEACTIVATED,
+      'Organization',
+      organizationId,
+      userId,
+    );
   }
 
   async getStats(organizationId: string): Promise<OrganizationStatsDto> {
@@ -310,6 +339,15 @@ export class OrganizationsService {
       },
     });
 
+    await this.auditService.log(
+      organizationId,
+      AuditActions.USER_INVITED,
+      'Invitation',
+      invitation.id,
+      inviterId,
+      { email: invitation.email, role: invitation.role, expiresAt: invitation.expiresAt },
+    );
+
     // Send invitation email
     const baseUrl = this.configService.get<string>('CORS_ORIGINS')?.split(',')[0] || 'http://localhost:3000';
     const sent = await this.emailService.sendInvitationEmail(
@@ -367,6 +405,15 @@ export class OrganizationsService {
       where: { id: memberId },
       data: { role: dto.role },
     });
+
+    await this.auditService.log(
+      organizationId,
+      AuditActions.USER_ROLE_CHANGED,
+      'UserOrg',
+      memberId,
+      currentUserId,
+      { role: dto.role },
+    );
   }
 
   async removeMember(organizationId: string, memberId: string, currentUserId: string): Promise<void> {
@@ -400,9 +447,18 @@ export class OrganizationsService {
     await this.prisma.userOrg.delete({
       where: { id: memberId },
     });
+
+    await this.auditService.log(
+      organizationId,
+      AuditActions.USER_REMOVED,
+      'UserOrg',
+      memberId,
+      currentUserId,
+      { removedUserId: userOrg.userId, role: userOrg.role },
+    );
   }
 
-  async cancelInvitation(organizationId: string, invitationId: string): Promise<void> {
+  async cancelInvitation(organizationId: string, invitationId: string, userId?: string): Promise<void> {
     const invitation = await this.prisma.invitation.findUnique({
       where: { id: invitationId },
     });
@@ -419,6 +475,15 @@ export class OrganizationsService {
       where: { id: invitationId },
       data: { status: 'CANCELLED' },
     });
+
+    await this.auditService.log(
+      organizationId,
+      AuditActions.INVITATION_CANCELLED,
+      'Invitation',
+      invitationId,
+      userId,
+      { status: 'CANCELLED' },
+    );
   }
 
   async getPendingInvitations(organizationId: string) {

@@ -19,7 +19,6 @@ import {
   ApiParam,
   ApiQuery,
 } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
 import { JurisdictionsService } from './jurisdictions.service';
 import {
   CreateJurisdictionDto,
@@ -29,8 +28,7 @@ import {
 } from './dto/jurisdiction.dto';
 import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
+import { PlatformAdminGuard } from '../common/guards/platform-admin.guard';
 import { Public } from '../common/decorators/public.decorator';
 
 @ApiTags('jurisdictions')
@@ -48,8 +46,7 @@ export class JurisdictionsController {
 
   @Get('all')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.OWNER, Role.ADMIN)
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiOperation({ summary: 'Listar todas las jurisdicciones (incluyendo inactivas)' })
   @ApiQuery({ name: 'activeOnly', required: false, type: Boolean })
   @ApiResponse({ status: 200, description: 'Lista paginada de jurisdicciones' })
@@ -90,8 +87,7 @@ export class JurisdictionsController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.OWNER, Role.ADMIN)
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiOperation({ summary: 'Crear nueva jurisdiccion' })
   @ApiResponse({ status: 201, description: 'Jurisdiccion creada', type: JurisdictionResponseDto })
   @ApiResponse({ status: 409, description: 'Ya existe una jurisdiccion con ese codigo' })
@@ -101,8 +97,7 @@ export class JurisdictionsController {
 
   @Patch(':id')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.OWNER, Role.ADMIN)
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiOperation({ summary: 'Actualizar jurisdiccion' })
   @ApiParam({ name: 'id', type: 'string' })
   @ApiResponse({ status: 200, description: 'Jurisdiccion actualizada', type: JurisdictionResponseDto })
@@ -116,8 +111,7 @@ export class JurisdictionsController {
 
   @Delete(':id')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.OWNER, Role.ADMIN)
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Desactivar jurisdiccion' })
   @ApiParam({ name: 'id', type: 'string' })

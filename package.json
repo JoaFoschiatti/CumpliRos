@@ -21,6 +21,8 @@
     "db:seed": "npm run db:seed --workspace=backend"
   },
   "devDependencies": {
+    "@nestjs/common": "^11.1.12",
+    "@nestjs/core": "^11.1.12",
     "concurrently": "^8.2.2"
   },
   "engines": {

@@ -27,6 +27,8 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { OrganizationGuard } from '../common/guards/organization.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { AuthenticatedUser } from '../common/interfaces/request.interface';
 
 @ApiTags('locations')
 @ApiBearerAuth()
@@ -44,8 +46,9 @@ export class LocationsController {
   async create(
     @Param('organizationId') organizationId: string,
     @Body() dto: CreateLocationDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<LocationResponseDto> {
-    return this.locationsService.create(organizationId, dto);
+    return this.locationsService.create(organizationId, dto, user.id);
   }
 
   @Get()
@@ -84,8 +87,9 @@ export class LocationsController {
     @Param('organizationId') organizationId: string,
     @Param('locationId') locationId: string,
     @Body() dto: UpdateLocationDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<LocationResponseDto> {
-    return this.locationsService.update(organizationId, locationId, dto);
+    return this.locationsService.update(organizationId, locationId, dto, user.id);
   }
 
   @Delete(':locationId')
@@ -99,7 +103,8 @@ export class LocationsController {
   async deactivate(
     @Param('organizationId') organizationId: string,
     @Param('locationId') locationId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
-    await this.locationsService.deactivate(organizationId, locationId);
+    await this.locationsService.deactivate(organizationId, locationId, user.id);
   }
 }

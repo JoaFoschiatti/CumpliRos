@@ -5,6 +5,8 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import { AuditActions } from '../audit/dto/audit.dto';
 import { ObligationStatus, Obligation, Organization } from '@prisma/client';
 import {
   CreateObligationDto,
@@ -18,7 +20,10 @@ import { PaginationDto, createPaginatedResponse, PaginatedResponse } from '../co
 
 @Injectable()
 export class ObligationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
   calculateTrafficLight(
     dueDate: Date,
@@ -90,7 +95,11 @@ export class ObligationsService {
     };
   }
 
-  async create(organizationId: string, dto: CreateObligationDto): Promise<ObligationResponseDto> {
+  async create(
+    organizationId: string,
+    dto: CreateObligationDto,
+    userId?: string,
+  ): Promise<ObligationResponseDto> {
     // Verify location belongs to organization if provided
     if (dto.locationId) {
       const location = await this.prisma.location.findFirst({
@@ -132,6 +141,21 @@ export class ObligationsService {
         _count: { select: { documents: true, tasks: true, reviews: true } },
       },
     });
+
+    await this.auditService.log(
+      organizationId,
+      AuditActions.OBLIGATION_CREATED,
+      'Obligation',
+      obligation.id,
+      userId,
+      {
+        title: obligation.title,
+        type: obligation.type,
+        dueDate: obligation.dueDate,
+        ownerUserId: obligation.ownerUserId,
+        locationId: obligation.locationId ?? undefined,
+      },
+    );
 
     return this.enrichWithTrafficLight(obligation, organization!);
   }
@@ -223,6 +247,7 @@ export class ObligationsService {
     organizationId: string,
     obligationId: string,
     dto: UpdateObligationDto,
+    userId?: string,
   ): Promise<ObligationResponseDto> {
     const organization = await this.prisma.organization.findUnique({
       where: { id: organizationId },
@@ -266,6 +291,15 @@ export class ObligationsService {
       },
     });
 
+    await this.auditService.log(
+      organizationId,
+      AuditActions.OBLIGATION_UPDATED,
+      'Obligation',
+      obligationId,
+      userId,
+      { changes: dto },
+    );
+
     return this.enrichWithTrafficLight(obligation, organization!);
   }
 
@@ -273,6 +307,7 @@ export class ObligationsService {
     organizationId: string,
     obligationId: string,
     status: ObligationStatus,
+    userId?: string,
   ): Promise<ObligationResponseDto> {
     const organization = await this.prisma.organization.findUnique({
       where: { id: organizationId },
@@ -321,10 +356,19 @@ export class ObligationsService {
       },
     });
 
+    await this.auditService.log(
+      organizationId,
+      AuditActions.OBLIGATION_STATUS_CHANGED,
+      'Obligation',
+      obligationId,
+      userId,
+      { from: obligation.status, to: status },
+    );
+
     return this.enrichWithTrafficLight(updated, organization!);
   }
 
-  async delete(organizationId: string, obligationId: string): Promise<void> {
+  async delete(organizationId: string, obligationId: string, userId?: string): Promise<void> {
     const obligation = await this.prisma.obligation.findFirst({
       where: { id: obligationId, organizationId },
     });
@@ -336,6 +380,15 @@ export class ObligationsService {
     await this.prisma.obligation.delete({
       where: { id: obligationId },
     });
+
+    await this.auditService.log(
+      organizationId,
+      AuditActions.OBLIGATION_DELETED,
+      'Obligation',
+      obligationId,
+      userId,
+      { title: obligation.title },
+    );
   }
 
   async getDashboard(organizationId: string): Promise<ObligationDashboardDto> {

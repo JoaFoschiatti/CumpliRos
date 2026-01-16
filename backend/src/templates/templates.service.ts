@@ -12,8 +12,8 @@ import {
   RubricDto,
   ChecklistItemDto,
 } from './dto/template.dto';
-import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
-import { ObligationStatus, TaskStatus } from '@prisma/client';
+import { PaginationDto, PaginatedResponse, createPaginatedResponse } from '../common/dto/pagination.dto';
+import { Prisma, ObligationStatus, TaskStatus } from '@prisma/client';
 
 @Injectable()
 export class TemplatesService {
@@ -39,7 +39,7 @@ export class TemplatesService {
         requiresReview: dto.requiresReview,
         requiredEvidenceCount: dto.requiredEvidenceCount,
         severity: dto.severity,
-        references: dto.references || null,
+        references: dto.references ? (dto.references as Prisma.InputJsonValue) : undefined,
         isActive: true,
       },
       include: {
@@ -94,24 +94,18 @@ export class TemplatesService {
       this.prisma.obligationTemplate.count({ where }),
     ]);
 
-    return {
-      data: templates.map((t) => ({
-        id: t.id,
-        templateKey: t.templateKey,
-        title: t.title,
-        rubric: t.rubric,
-        type: t.type,
-        defaultPeriodicity: t.defaultPeriodicity,
-        severity: t.severity,
-        checklistItemCount: t._count.checklistItems,
-      })),
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
+    const data = templates.map((t) => ({
+      id: t.id,
+      templateKey: t.templateKey,
+      title: t.title,
+      rubric: t.rubric,
+      type: t.type,
+      defaultPeriodicity: t.defaultPeriodicity,
+      severity: t.severity,
+      checklistItemCount: t._count.checklistItems,
+    }));
+
+    return createPaginatedResponse(data, total, page, limit);
   }
 
   async findByJurisdictionAndRubric(
@@ -451,7 +445,7 @@ export class TemplatesService {
 
   private periodicityToRecurrenceRule(periodicity: string): string | null {
     // Convertir a formato iCalendar RRULE
-    const rules: Record<string, string> = {
+    const rules: Record<string, string | null> = {
       WEEKLY: 'FREQ=WEEKLY;INTERVAL=1',
       BIWEEKLY: 'FREQ=WEEKLY;INTERVAL=2',
       MONTHLY: 'FREQ=MONTHLY;INTERVAL=1',

@@ -35,6 +35,7 @@ import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { OrganizationGuard } from '../common/guards/organization.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { PlatformAdminGuard } from '../common/guards/platform-admin.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
@@ -100,8 +101,7 @@ export class TemplatesController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.OWNER, Role.ADMIN)
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiOperation({ summary: 'Crear nueva plantilla' })
   @ApiResponse({ status: 201, description: 'Plantilla creada', type: ObligationTemplateResponseDto })
   async create(@Body() dto: CreateObligationTemplateDto): Promise<ObligationTemplateResponseDto> {
@@ -110,8 +110,7 @@ export class TemplatesController {
 
   @Patch(':id')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.OWNER, Role.ADMIN)
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiOperation({ summary: 'Actualizar plantilla' })
   @ApiParam({ name: 'id', type: 'string' })
   @ApiResponse({ status: 200, description: 'Plantilla actualizada', type: ObligationTemplateResponseDto })
@@ -124,8 +123,7 @@ export class TemplatesController {
 
   @Delete(':id')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.OWNER, Role.ADMIN)
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Desactivar plantilla' })
   @ApiParam({ name: 'id', type: 'string' })

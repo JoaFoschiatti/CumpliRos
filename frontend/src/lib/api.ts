@@ -1,10 +1,31 @@
 import { useAuthStore } from '@/stores/auth.store';
+import type {
+  AuditEvent,
+  AuthResponse,
+  ComplianceReport,
+  Document,
+  Location,
+  Obligation,
+  ObligationDashboard,
+  ObligationReportItem,
+  Organization,
+  OrganizationMember,
+  OrganizationStats,
+  PaginatedResponse,
+  Review,
+  Role,
+  Task,
+  TaskItem,
+  UserProfile,
+} from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
   skipAuth?: boolean;
+  // Internal flag to prevent infinite refresh-retry loops
+  __retried?: boolean;
 }
 
 class ApiError extends Error {
@@ -23,13 +44,11 @@ let isRefreshing = false;
 let refreshPromise: Promise<string | null> | null = null;
 
 /**
- * Attempt to refresh the access token using the stored refresh token
+ * Attempt to refresh the access token using the httpOnly refresh cookie
  */
 async function refreshAccessToken(): Promise<string | null> {
   const store = useAuthStore.getState();
-  const refreshToken = store.refreshToken;
-
-  if (!refreshToken) {
+  if (!store.user) {
     return null;
   }
 
@@ -37,7 +56,7 @@ async function refreshAccessToken(): Promise<string | null> {
     const response = await fetch(`${API_URL}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
+      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -47,7 +66,7 @@ async function refreshAccessToken(): Promise<string | null> {
     }
 
     const data = await response.json();
-    store.setAuth(data.user, data.accessToken, data.refreshToken);
+    store.setAuth(data.user, data.accessToken);
     return data.accessToken;
   } catch {
     store.logout();
@@ -66,30 +85,25 @@ async function getValidAccessToken(): Promise<string | null> {
     return store.accessToken;
   }
 
-  // If we have a refresh token but no access token, try to refresh
-  if (store.refreshToken) {
-    // Avoid multiple simultaneous refresh calls
-    if (isRefreshing && refreshPromise) {
-      return refreshPromise;
-    }
-
-    isRefreshing = true;
-    refreshPromise = refreshAccessToken();
-
-    try {
-      const token = await refreshPromise;
-      return token;
-    } finally {
-      isRefreshing = false;
-      refreshPromise = null;
-    }
+  // No access token: try to refresh via cookie (avoid multiple simultaneous refresh calls)
+  if (isRefreshing && refreshPromise) {
+    return refreshPromise;
   }
 
-  return null;
+  isRefreshing = true;
+  refreshPromise = refreshAccessToken();
+
+  try {
+    const token = await refreshPromise;
+    return token;
+  } finally {
+    isRefreshing = false;
+    refreshPromise = null;
+  }
 }
 
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-  const { params, skipAuth, ...fetchOptions } = options;
+  const { params, skipAuth, __retried, ...fetchOptions } = options;
 
   // Build URL with query params
   let url = `${API_URL}${endpoint}`;
@@ -118,6 +132,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   const response = await fetch(url, {
     ...fetchOptions,
     headers,
+    credentials: 'include',
   });
 
   // Handle 204 No Content
@@ -129,14 +144,11 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 
   if (!response.ok) {
     // If 401 and we have a refresh token, try to refresh and retry
-    if (response.status === 401 && !skipAuth) {
-      const store = useAuthStore.getState();
-      if (store.refreshToken) {
-        const newToken = await refreshAccessToken();
-        if (newToken) {
-          // Retry the request with new token
-          return request(endpoint, { ...options, skipAuth: false });
-        }
+    if (response.status === 401 && !skipAuth && !__retried) {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        // Retry the request once with new token
+        return request(endpoint, { ...options, skipAuth: false, __retried: true });
       }
     }
     throw new ApiError(response.status, data.message || 'Error en la solicitud', data.errors);
@@ -148,7 +160,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 // Auth
 export const auth = {
   login: (email: string, password: string) =>
-    request<{ accessToken: string; refreshToken: string; user: { id: string; email: string; fullName: string } }>(
+    request<AuthResponse>(
       '/auth/login',
       {
         method: 'POST',
@@ -158,7 +170,7 @@ export const auth = {
     ),
 
   register: (email: string, fullName: string, password: string) =>
-    request<{ accessToken: string; refreshToken: string; user: { id: string; email: string; fullName: string } }>(
+    request<AuthResponse>(
       '/auth/register',
       {
         method: 'POST',
@@ -167,32 +179,26 @@ export const auth = {
       }
     ),
 
-  refresh: (refreshToken: string) =>
-    request<{ accessToken: string; refreshToken: string; user: { id: string; email: string; fullName: string } }>(
+  refresh: () =>
+    request<AuthResponse>(
       '/auth/refresh',
       {
         method: 'POST',
-        body: JSON.stringify({ refreshToken }),
         skipAuth: true,
       }
     ),
 
-  logout: (refreshToken: string) =>
+  logout: () =>
     request<void>('/auth/logout', {
       method: 'POST',
-      body: JSON.stringify({ refreshToken }),
+      body: JSON.stringify({}),
     }),
 
   getProfile: () =>
-    request<{
-      id: string;
-      email: string;
-      fullName: string;
-      organizations: Array<{ id: string; name: string; cuit: string; role: string }>;
-    }>('/auth/profile'),
+    request<UserProfile>('/auth/profile'),
 
   acceptInvitation: (token: string, fullName?: string, password?: string) =>
-    request<{ accessToken: string; refreshToken: string; user: { id: string; email: string; fullName: string } }>(
+    request<AuthResponse>(
       '/auth/accept-invitation',
       {
         method: 'POST',
@@ -205,27 +211,41 @@ export const auth = {
 // Organizations
 export const organizations = {
   list: (page = 1, limit = 20) =>
-    request<any>('/organizations', { params: { page, limit } }),
+    request<PaginatedResponse<Organization>>('/organizations', { params: { page, limit } }),
 
-  get: (id: string) => request<any>(`/organizations/${id}`),
+  get: (id: string) => request<Organization>(`/organizations/${id}`),
 
-  create: (data: { cuit: string; name: string; plan?: string; thresholdYellowDays?: number; thresholdRedDays?: number }) =>
-    request<any>('/organizations', {
+  create: (data: {
+    cuit: string;
+    name: string;
+    plan?: Organization['plan'];
+    thresholdYellowDays?: number;
+    thresholdRedDays?: number;
+    jurisdictionId?: string;
+  }) =>
+    request<Organization>('/organizations', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  update: (id: string, data: Partial<{ cuit: string; name: string; plan?: string; thresholdYellowDays?: number; thresholdRedDays?: number }>) =>
-    request<any>(`/organizations/${id}`, {
+  update: (id: string, data: Partial<{
+    cuit: string;
+    name: string;
+    plan?: Organization['plan'];
+    thresholdYellowDays?: number;
+    thresholdRedDays?: number;
+    jurisdictionId?: string;
+  }>) =>
+    request<Organization>(`/organizations/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
 
-  getStats: (id: string) => request<any>(`/organizations/${id}/stats`),
+  getStats: (id: string) => request<OrganizationStats>(`/organizations/${id}/stats`),
 
-  getMembers: (id: string) => request<any>(`/organizations/${id}/members`),
+  getMembers: (id: string) => request<OrganizationMember[]>(`/organizations/${id}/members`),
 
-  inviteMember: (orgId: string, email: string, role: string) =>
+  inviteMember: (orgId: string, email: string, role: Role) =>
     request<{ token: string }>(`/organizations/${orgId}/invitations`, {
       method: 'POST',
       body: JSON.stringify({ email, role }),
@@ -235,19 +255,19 @@ export const organizations = {
 // Locations
 export const locations = {
   list: (orgId: string, page = 1, limit = 20) =>
-    request<any>(`/organizations/${orgId}/locations`, { params: { page, limit } }),
+    request<PaginatedResponse<Location>>(`/organizations/${orgId}/locations`, { params: { page, limit } }),
 
   get: (orgId: string, locId: string) =>
-    request<any>(`/organizations/${orgId}/locations/${locId}`),
+    request<Location>(`/organizations/${orgId}/locations/${locId}`),
 
-  create: (orgId: string, data: { name: string; address?: string; rubric?: string }) =>
-    request<any>(`/organizations/${orgId}/locations`, {
+  create: (orgId: string, data: Pick<Location, 'name' | 'address' | 'rubric'>) =>
+    request<Location>(`/organizations/${orgId}/locations`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  update: (orgId: string, locId: string, data: Partial<{ name: string; address?: string; rubric?: string; active?: boolean }>) =>
-    request<any>(`/organizations/${orgId}/locations/${locId}`, {
+  update: (orgId: string, locId: string, data: Partial<Pick<Location, 'name' | 'address' | 'rubric' | 'active'>>) =>
+    request<Location>(`/organizations/${orgId}/locations/${locId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
@@ -256,33 +276,33 @@ export const locations = {
 // Obligations
 export const obligations = {
   list: (orgId: string, params?: { page?: number; limit?: number; status?: string; type?: string; locationId?: string }) =>
-    request<any>(`/organizations/${orgId}/obligations`, { params }),
+    request<PaginatedResponse<Obligation>>(`/organizations/${orgId}/obligations`, { params }),
 
   get: (orgId: string, oblId: string) =>
-    request<any>(`/organizations/${orgId}/obligations/${oblId}`),
+    request<Obligation>(`/organizations/${orgId}/obligations/${oblId}`),
 
   getDashboard: (orgId: string) =>
-    request<any>(`/organizations/${orgId}/obligations/dashboard`),
+    request<ObligationDashboard>(`/organizations/${orgId}/obligations/dashboard`),
 
   getCalendar: (orgId: string, startDate: string, endDate: string) =>
-    request<any>(`/organizations/${orgId}/obligations/calendar`, {
+    request<Obligation[]>(`/organizations/${orgId}/obligations/calendar`, {
       params: { startDate, endDate },
     }),
 
-  create: (orgId: string, data: any) =>
-    request<any>(`/organizations/${orgId}/obligations`, {
+  create: (orgId: string, data: Record<string, unknown>) =>
+    request<Obligation>(`/organizations/${orgId}/obligations`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  update: (orgId: string, oblId: string, data: any) =>
-    request<any>(`/organizations/${orgId}/obligations/${oblId}`, {
+  update: (orgId: string, oblId: string, data: Record<string, unknown>) =>
+    request<Obligation>(`/organizations/${orgId}/obligations/${oblId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
 
   updateStatus: (orgId: string, oblId: string, status: string) =>
-    request<any>(`/organizations/${orgId}/obligations/${oblId}/status`, {
+    request<Obligation>(`/organizations/${orgId}/obligations/${oblId}/status`, {
       method: 'PATCH',
       params: { status },
     }),
@@ -296,25 +316,25 @@ export const obligations = {
 // Tasks
 export const tasks = {
   list: (orgId: string, params?: { page?: number; limit?: number; obligationId?: string; status?: string }) =>
-    request<any>(`/organizations/${orgId}/tasks`, { params }),
+    request<PaginatedResponse<Task>>(`/organizations/${orgId}/tasks`, { params }),
 
   get: (orgId: string, taskId: string) =>
-    request<any>(`/organizations/${orgId}/tasks/${taskId}`),
+    request<Task>(`/organizations/${orgId}/tasks/${taskId}`),
 
-  create: (orgId: string, data: any) =>
-    request<any>(`/organizations/${orgId}/tasks`, {
+  create: (orgId: string, data: Record<string, unknown>) =>
+    request<Task>(`/organizations/${orgId}/tasks`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  update: (orgId: string, taskId: string, data: any) =>
-    request<any>(`/organizations/${orgId}/tasks/${taskId}`, {
+  update: (orgId: string, taskId: string, data: Record<string, unknown>) =>
+    request<Task>(`/organizations/${orgId}/tasks/${taskId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
 
   toggleItem: (orgId: string, taskId: string, itemId: string) =>
-    request<any>(`/organizations/${orgId}/tasks/${taskId}/items/${itemId}/toggle`, {
+    request<TaskItem>(`/organizations/${orgId}/tasks/${taskId}/items/${itemId}/toggle`, {
       method: 'POST',
     }),
 };
@@ -322,10 +342,10 @@ export const tasks = {
 // Documents
 export const documents = {
   list: (orgId: string, params?: { page?: number; limit?: number; obligationId?: string; taskId?: string }) =>
-    request<any>(`/organizations/${orgId}/documents`, { params }),
+    request<PaginatedResponse<Document>>(`/organizations/${orgId}/documents`, { params }),
 
   get: (orgId: string, docId: string) =>
-    request<any>(`/organizations/${orgId}/documents/${docId}`),
+    request<Document>(`/organizations/${orgId}/documents/${docId}`),
 
   getUploadUrl: (orgId: string, fileName: string, mimeType: string) =>
     request<{ uploadUrl: string; fileKey: string }>(`/organizations/${orgId}/documents/upload-url`, {
@@ -334,7 +354,7 @@ export const documents = {
     }),
 
   register: (orgId: string, data: { fileName: string; mimeType: string; sizeBytes: number; fileKey: string; obligationId?: string; taskId?: string }) =>
-    request<any>(`/organizations/${orgId}/documents`, {
+    request<Document>(`/organizations/${orgId}/documents`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -348,13 +368,13 @@ export const documents = {
 // Reviews
 export const reviews = {
   list: (orgId: string, obligationId: string, params?: { page?: number; limit?: number }) =>
-    request<any>(`/organizations/${orgId}/reviews/obligation/${obligationId}`, { params }),
+    request<PaginatedResponse<Review>>(`/organizations/${orgId}/reviews/obligation/${obligationId}`, { params }),
 
   getPending: (orgId: string, params?: { page?: number; limit?: number }) =>
-    request<any>(`/organizations/${orgId}/reviews/pending`, { params }),
+    request<PaginatedResponse<Review>>(`/organizations/${orgId}/reviews/pending`, { params }),
 
   create: (orgId: string, data: { obligationId: string; status: string; comment?: string }) =>
-    request<any>(`/organizations/${orgId}/reviews`, {
+    request<Review>(`/organizations/${orgId}/reviews`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -363,19 +383,52 @@ export const reviews = {
 // Audit
 export const audit = {
   list: (orgId: string, params?: { page?: number; limit?: number; action?: string; entityType?: string; fromDate?: string; toDate?: string }) =>
-    request<any>(`/organizations/${orgId}/audit`, { params }),
+    request<PaginatedResponse<AuditEvent>>(`/organizations/${orgId}/audit`, { params }),
 };
 
 // Reports
 export const reports = {
   getCompliance: (orgId: string, params?: { fromDate?: string; toDate?: string; locationId?: string }) =>
-    request<any>(`/organizations/${orgId}/reports/compliance`, { params }),
+    request<ComplianceReport>(`/organizations/${orgId}/reports/compliance`, { params }),
 
   getObligations: (orgId: string, params?: { fromDate?: string; toDate?: string; locationId?: string }) =>
-    request<any>(`/organizations/${orgId}/reports/obligations`, { params }),
+    request<ObligationReportItem[]>(`/organizations/${orgId}/reports/obligations`, { params }),
 
-  exportCsv: (orgId: string, params?: { fromDate?: string; toDate?: string; locationId?: string }) =>
-    `${API_URL}/organizations/${orgId}/reports/export/csv?${new URLSearchParams(params as any).toString()}`,
+  exportCsv: (orgId: string, params?: { fromDate?: string; toDate?: string; locationId?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          searchParams.append(key, String(value));
+        }
+      });
+    }
+    const queryString = searchParams.toString();
+    return `${API_URL}/organizations/${orgId}/reports/export/csv${queryString ? `?${queryString}` : ''}`;
+  },
+};
+
+// Generic helpers (legacy-style usage)
+export const api = {
+  get: <T>(endpoint: string, options: Omit<RequestOptions, 'method' | 'body'> = {}) =>
+    request<T>(endpoint, { ...options, method: 'GET' }),
+
+  post: <T>(endpoint: string, body?: unknown, options: Omit<RequestOptions, 'method'> = {}) =>
+    request<T>(endpoint, {
+      ...options,
+      method: 'POST',
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    }),
+
+  patch: <T>(endpoint: string, body?: unknown, options: Omit<RequestOptions, 'method'> = {}) =>
+    request<T>(endpoint, {
+      ...options,
+      method: 'PATCH',
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    }),
+
+  delete: <T>(endpoint: string, options: Omit<RequestOptions, 'method' | 'body'> = {}) =>
+    request<T>(endpoint, { ...options, method: 'DELETE' }),
 };
 
 export { ApiError };

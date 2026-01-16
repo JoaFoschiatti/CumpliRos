@@ -49,7 +49,7 @@ export default function RegisterPage() {
     setIsLoading(true);
     try {
       const response = await auth.register(data.email, data.fullName, data.password);
-      setAuth(response.user, response.accessToken, response.refreshToken);
+      setAuth(response.user, response.accessToken);
 
       toast({
         title: 'Cuenta creada',
@@ -57,10 +57,10 @@ export default function RegisterPage() {
       });
 
       router.push('/dashboard');
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Error',
-        description: error.message || 'No se pudo crear la cuenta',
+        description: error instanceof Error ? error.message : 'No se pudo crear la cuenta',
         variant: 'destructive',
       });
     } finally {

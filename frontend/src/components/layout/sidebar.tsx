@@ -9,7 +9,6 @@ import {
   CheckSquare,
   FileText,
   BarChart3,
-  Settings,
   LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';

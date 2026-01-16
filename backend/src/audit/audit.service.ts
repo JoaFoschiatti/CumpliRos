@@ -73,7 +73,7 @@ export class AuditService {
       this.prisma.auditEvent.count({ where }),
     ]);
 
-    const enrichedEvents = events.map((e) => this.enrichEvent(e));
+    const enrichedEvents = events.map((event: any) => this.enrichEvent(event));
 
     return createPaginatedResponse(enrichedEvents, total, pagination.page!, pagination.limit!);
   }
@@ -99,7 +99,7 @@ export class AuditService {
       this.prisma.auditEvent.count({ where }),
     ]);
 
-    const enrichedEvents = events.map((e) => this.enrichEvent(e));
+    const enrichedEvents = events.map((event: any) => this.enrichEvent(event));
 
     return createPaginatedResponse(enrichedEvents, total, pagination.page!, pagination.limit!);
   }

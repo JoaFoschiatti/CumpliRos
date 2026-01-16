@@ -19,7 +19,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { DocumentsService } from './documents.service';
-import { DocumentResponseDto, DocumentFilterDto } from './dto/document.dto';
+import { DocumentResponseDto, DocumentFilterDto, GetUploadUrlDto, RegisterDocumentDto } from './dto/document.dto';
 import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { OrganizationGuard } from '../common/guards/organization.guard';
@@ -39,7 +39,7 @@ export class DocumentsController {
   @ApiResponse({ status: 200, description: 'URL de subida generada' })
   async getUploadUrl(
     @Param('organizationId') organizationId: string,
-    @Body() dto: { fileName: string; mimeType: string },
+    @Body() dto: GetUploadUrlDto,
   ): Promise<{ uploadUrl: string; fileKey: string }> {
     return this.documentsService.getUploadUrl(organizationId, dto.fileName, dto.mimeType);
   }
@@ -51,24 +51,16 @@ export class DocumentsController {
   async create(
     @Param('organizationId') organizationId: string,
     @CurrentUser() user: AuthenticatedUser,
-    @Body()
-    dto: {
-      fileName: string;
-      mimeType: string;
-      sizeBytes: number;
-      fileKey: string;
-      obligationId?: string;
-      taskId?: string;
-    },
+    @Body() dto: RegisterDocumentDto,
   ): Promise<DocumentResponseDto> {
     return this.documentsService.create(
       organizationId,
       user.id,
       {
         fileName: dto.fileName,
+        fileKey: dto.fileKey,
         mimeType: dto.mimeType,
         sizeBytes: dto.sizeBytes,
-        fileKey: dto.fileKey,
       },
       dto.obligationId,
       dto.taskId,
@@ -110,7 +102,8 @@ export class DocumentsController {
   async delete(
     @Param('organizationId') organizationId: string,
     @Param('documentId') documentId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
-    await this.documentsService.delete(organizationId, documentId);
+    await this.documentsService.delete(organizationId, documentId, user.id);
   }
 }

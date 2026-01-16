@@ -1,4 +1,4 @@
-import { PrismaClient, Periodicity, TemplateSeverity, ObligationType } from '@prisma/client';
+import { PrismaClient, Prisma, Periodicity, TemplateSeverity, ObligationType } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -117,7 +117,7 @@ async function upsertTemplate(jurisdictionId: string, template: TemplateJson) {
     requiresReview: template.requiresReview,
     requiredEvidenceCount: template.requiredEvidenceCount,
     severity: TemplateSeverity[template.severity],
-    references: template.references || null,
+    references: template.references ? (template.references as Prisma.InputJsonValue) : undefined,
     isActive: true,
   };
 

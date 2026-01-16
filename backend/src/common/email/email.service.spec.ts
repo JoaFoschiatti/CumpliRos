@@ -3,11 +3,13 @@ import { EmailService } from './email.service';
 
 // Mock Resend
 vi.mock('resend', () => ({
-  Resend: vi.fn().mockImplementation(() => ({
-    emails: {
-      send: vi.fn(),
-    },
-  })),
+  Resend: vi.fn().mockImplementation(function () {
+    return {
+      emails: {
+        send: vi.fn(),
+      },
+    };
+  }),
 }));
 
 import { Resend } from 'resend';
@@ -48,9 +50,11 @@ describe('EmailService', () => {
     beforeEach(() => {
       vi.clearAllMocks();
       mockResendSend = vi.fn();
-      vi.mocked(Resend).mockImplementation(() => ({
-        emails: { send: mockResendSend },
-      }) as any);
+      vi.mocked(Resend).mockImplementation(function () {
+        return {
+          emails: { send: mockResendSend },
+        } as any;
+      });
 
       const mockConfigService = {
         get: vi.fn((key: string) => {
@@ -122,9 +126,11 @@ describe('EmailService', () => {
     beforeEach(() => {
       vi.clearAllMocks();
       mockResendSend = vi.fn().mockResolvedValue({ data: { id: 'email-123' }, error: null });
-      vi.mocked(Resend).mockImplementation(() => ({
-        emails: { send: mockResendSend },
-      }) as any);
+      vi.mocked(Resend).mockImplementation(function () {
+        return {
+          emails: { send: mockResendSend },
+        } as any;
+      });
 
       const mockConfigService = {
         get: vi.fn((key: string) => {

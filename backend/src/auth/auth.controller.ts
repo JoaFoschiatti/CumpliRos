@@ -6,6 +6,9 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  Req,
+  Res,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -13,7 +16,9 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import type { Request, Response } from 'express';
 import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
+import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import {
   RegisterDto,
@@ -29,10 +34,84 @@ import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../common/interfaces/request.interface';
 
+const REFRESH_TOKEN_COOKIE = 'cumpliros_refresh';
+
+function getCookieValue(cookieHeader: string | undefined, name: string): string | undefined {
+  if (!cookieHeader) return undefined;
+  const parts = cookieHeader.split(';');
+  for (const part of parts) {
+    const [key, ...valueParts] = part.trim().split('=');
+    if (key === name) {
+      return decodeURIComponent(valueParts.join('='));
+    }
+  }
+  return undefined;
+}
+
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  private parseDurationMs(duration: string): number {
+    const match = duration.match(/^(\d+)([dhms])$/);
+    if (!match) {
+      return 30 * 24 * 60 * 60 * 1000;
+    }
+
+    const value = parseInt(match[1], 10);
+    const unit = match[2];
+
+    switch (unit) {
+      case 'd':
+        return value * 24 * 60 * 60 * 1000;
+      case 'h':
+        return value * 60 * 60 * 1000;
+      case 'm':
+        return value * 60 * 1000;
+      case 's':
+        return value * 1000;
+      default:
+        return 30 * 24 * 60 * 60 * 1000;
+    }
+  }
+
+  private setRefreshTokenCookie(res: Response, refreshToken: string): void {
+    const nodeEnv = this.configService.get<string>('NODE_ENV') || 'development';
+    const isProduction = nodeEnv === 'production';
+    const sameSite = (this.configService.get<string>('COOKIE_SAMESITE') ||
+      (isProduction ? 'lax' : 'lax')) as 'lax' | 'strict' | 'none';
+    const domain = this.configService.get<string>('COOKIE_DOMAIN');
+    const maxAge = this.parseDurationMs(this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '30d');
+
+    res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite,
+      domain: domain || undefined,
+      path: '/api/v1/auth',
+      maxAge,
+    });
+  }
+
+  private clearRefreshTokenCookie(res: Response): void {
+    const nodeEnv = this.configService.get<string>('NODE_ENV') || 'development';
+    const isProduction = nodeEnv === 'production';
+    const sameSite = (this.configService.get<string>('COOKIE_SAMESITE') ||
+      (isProduction ? 'lax' : 'lax')) as 'lax' | 'strict' | 'none';
+    const domain = this.configService.get<string>('COOKIE_DOMAIN');
+
+    res.clearCookie(REFRESH_TOKEN_COOKIE, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite,
+      domain: domain || undefined,
+      path: '/api/v1/auth',
+    });
+  }
 
   @Public()
   @Post('register')
@@ -42,8 +121,15 @@ export class AuthController {
   @ApiResponse({ status: 201, description: 'Usuario registrado exitosamente', type: AuthResponseDto })
   @ApiResponse({ status: 409, description: 'El email ya está registrado' })
   @ApiResponse({ status: 429, description: 'Demasiadas solicitudes' })
-  async register(@Body() dto: RegisterDto): Promise<AuthResponseDto> {
-    return this.authService.register(dto);
+  async register(
+    @Body() dto: RegisterDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthResponseDto> {
+    const { refreshToken, ...rest } = await this.authService.register(dto);
+    if (refreshToken) {
+      this.setRefreshTokenCookie(res, refreshToken);
+    }
+    return rest;
   }
 
   @Public()
@@ -55,8 +141,15 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Login exitoso', type: AuthResponseDto })
   @ApiResponse({ status: 401, description: 'Credenciales inválidas' })
   @ApiResponse({ status: 429, description: 'Demasiadas solicitudes' })
-  async login(@Body() dto: LoginDto): Promise<AuthResponseDto> {
-    return this.authService.login(dto);
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthResponseDto> {
+    const { refreshToken, ...rest } = await this.authService.login(dto);
+    if (refreshToken) {
+      this.setRefreshTokenCookie(res, refreshToken);
+    }
+    return rest;
   }
 
   @Public()
@@ -68,8 +161,25 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Token refrescado', type: AuthResponseDto })
   @ApiResponse({ status: 401, description: 'Token de refresco inválido o expirado' })
   @ApiResponse({ status: 429, description: 'Demasiadas solicitudes' })
-  async refreshToken(@Body() dto: RefreshTokenDto): Promise<AuthResponseDto> {
-    return this.authService.refreshToken(dto.refreshToken);
+  async refreshToken(
+    @Body() dto: RefreshTokenDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthResponseDto> {
+    const tokenFromCookie = getCookieValue(req.headers.cookie, REFRESH_TOKEN_COOKIE);
+    const refreshToken = dto.refreshToken || tokenFromCookie;
+    if (!refreshToken) {
+      this.clearRefreshTokenCookie(res);
+      throw new UnauthorizedException('Token de refresco faltante');
+    }
+
+    const { refreshToken: newRefreshToken, ...rest } = await this.authService.refreshToken(refreshToken);
+    if (newRefreshToken) {
+      this.setRefreshTokenCookie(res, newRefreshToken);
+    } else {
+      this.clearRefreshTokenCookie(res);
+    }
+    return rest;
   }
 
   @UseGuards(JwtAuthGuard)
@@ -81,8 +191,13 @@ export class AuthController {
   async logout(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: RefreshTokenDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
   ): Promise<void> {
-    await this.authService.logout(user.id, dto.refreshToken);
+    const tokenFromCookie = getCookieValue(req.headers.cookie, REFRESH_TOKEN_COOKIE);
+    const refreshToken = dto.refreshToken || tokenFromCookie;
+    await this.authService.logout(user.id, refreshToken);
+    this.clearRefreshTokenCookie(res);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -116,7 +231,14 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Invitación aceptada', type: AuthResponseDto })
   @ApiResponse({ status: 400, description: 'Invitación inválida o expirada' })
   @ApiResponse({ status: 429, description: 'Demasiadas solicitudes' })
-  async acceptInvitation(@Body() dto: AcceptInvitationDto): Promise<AuthResponseDto> {
-    return this.authService.acceptInvitation(dto);
+  async acceptInvitation(
+    @Body() dto: AcceptInvitationDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthResponseDto> {
+    const { refreshToken, ...rest } = await this.authService.acceptInvitation(dto);
+    if (refreshToken) {
+      this.setRefreshTokenCookie(res, refreshToken);
+    }
+    return rest;
   }
 }

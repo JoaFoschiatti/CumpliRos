@@ -6,6 +6,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  HeadObjectCommand,
   CreateBucketCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -112,6 +113,24 @@ export class StorageService implements OnModuleInit {
 
     await this.s3Client.send(command);
     this.logger.debug(`File deleted: ${fileKey}`);
+  }
+
+  /**
+   * Read object metadata (size/type) from S3.
+   * Useful to validate uploads instead of trusting client-provided values.
+   */
+  async getObjectMetadata(fileKey: string): Promise<{ sizeBytes: number; mimeType?: string }> {
+    const command = new HeadObjectCommand({
+      Bucket: this.bucket,
+      Key: fileKey,
+    });
+
+    const result = await this.s3Client.send(command);
+
+    return {
+      sizeBytes: result.ContentLength ?? 0,
+      mimeType: result.ContentType,
+    };
   }
 
   /**

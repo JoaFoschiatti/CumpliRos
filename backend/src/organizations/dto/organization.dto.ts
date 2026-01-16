@@ -78,7 +78,7 @@ export class JurisdictionSummaryDto {
   name: string;
 
   @ApiPropertyOptional({ example: 'Santa Fe' })
-  province?: string;
+  province?: string | null;
 }
 
 export class OrganizationResponseDto {
@@ -92,10 +92,10 @@ export class OrganizationResponseDto {
   name: string;
 
   @ApiPropertyOptional()
-  jurisdictionId?: string;
+  jurisdictionId?: string | null;
 
-  @ApiPropertyOptional({ type: JurisdictionSummaryDto })
-  jurisdiction?: JurisdictionSummaryDto;
+  @ApiPropertyOptional({ type: JurisdictionSummaryDto, nullable: true })
+  jurisdiction?: JurisdictionSummaryDto | null;
 
   @ApiProperty({ enum: Plan })
   plan: Plan;

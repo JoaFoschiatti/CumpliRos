@@ -9,8 +9,11 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
 import { v4 as uuidv4 } from 'uuid';
+import { createHash } from 'crypto';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { JwtPayload } from '../common/interfaces/request.interface';
+import { AuditService } from '../audit/audit.service';
+import { AuditActions } from '../audit/dto/audit.dto';
 import {
   RegisterDto,
   LoginDto,
@@ -26,7 +29,13 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private auditService: AuditService,
   ) {}
+
+  private hashRefreshToken(refreshToken: string): string {
+    const pepper = this.configService.get<string>('JWT_REFRESH_SECRET') || '';
+    return createHash('sha256').update(`${pepper}:${refreshToken}`).digest('hex');
+  }
 
   async register(dto: RegisterDto): Promise<AuthResponseDto> {
     // Check if user already exists
@@ -72,8 +81,10 @@ export class AuthService {
   }
 
   async refreshToken(refreshToken: string): Promise<AuthResponseDto> {
-    const storedToken = await this.prisma.refreshToken.findUnique({
-      where: { token: refreshToken },
+    const tokenHash = this.hashRefreshToken(refreshToken);
+
+    const storedToken = await this.prisma.refreshToken.findFirst({
+      where: { token: { in: [tokenHash, refreshToken] } },
       include: { user: true },
     });
 
@@ -98,8 +109,9 @@ export class AuthService {
 
   async logout(userId: string, refreshToken?: string): Promise<void> {
     if (refreshToken) {
+      const tokenHash = this.hashRefreshToken(refreshToken);
       await this.prisma.refreshToken.deleteMany({
-        where: { userId, token: refreshToken },
+        where: { userId, token: { in: [tokenHash, refreshToken] } },
       });
     } else {
       // Delete all refresh tokens for user
@@ -163,7 +175,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       fullName: user.fullName,
-      organizations: user.userOrgs.map((uo) => ({
+      organizations: user.userOrgs.map((uo: any) => ({
         id: uo.organization.id,
         name: uo.organization.name,
         cuit: uo.organization.cuit,
@@ -231,7 +243,7 @@ export class AuthService {
     }
 
     // Create membership and update invitation
-    await this.prisma.$transaction([
+    const [membership] = await this.prisma.$transaction([
       this.prisma.userOrg.create({
         data: {
           userId: user.id,
@@ -244,6 +256,15 @@ export class AuthService {
         data: { status: 'ACCEPTED' },
       }),
     ]);
+
+    await this.auditService.log(
+      invitation.organizationId,
+      AuditActions.USER_JOINED,
+      'UserOrg',
+      membership.id,
+      user.id,
+      { role: invitation.role, email: user.email },
+    );
 
     return this.generateTokens(user);
   }
@@ -260,6 +281,7 @@ export class AuthService {
     });
 
     const refreshToken = uuidv4();
+    const refreshTokenHash = this.hashRefreshToken(refreshToken);
     const refreshExpiresIn = this.configService.get('JWT_REFRESH_EXPIRES_IN') || '30d';
     const expiresAt = new Date();
     expiresAt.setTime(expiresAt.getTime() + this.parseDuration(refreshExpiresIn));
@@ -267,7 +289,7 @@ export class AuthService {
     await this.prisma.refreshToken.create({
       data: {
         userId: user.id,
-        token: refreshToken,
+        token: refreshTokenHash,
         expiresAt,
       },
     });

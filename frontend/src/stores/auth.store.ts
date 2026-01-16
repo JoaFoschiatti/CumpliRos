@@ -5,11 +5,10 @@ import type { User, OrganizationMembership } from '@/types';
 interface AuthState {
   user: User | null;
   accessToken: string | null;
-  refreshToken: string | null;
   organizations: OrganizationMembership[];
   currentOrganizationId: string | null;
 
-  setAuth: (user: User, accessToken: string, refreshToken: string) => void;
+  setAuth: (user: User, accessToken: string) => void;
   setAccessToken: (accessToken: string) => void;
   setOrganizations: (organizations: OrganizationMembership[]) => void;
   setCurrentOrganization: (organizationId: string | null) => void;
@@ -23,12 +22,11 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       accessToken: null,
-      refreshToken: null,
       organizations: [],
       currentOrganizationId: null,
 
-      setAuth: (user, accessToken, refreshToken) => {
-        set({ user, accessToken, refreshToken });
+      setAuth: (user, accessToken) => {
+        set({ user, accessToken });
       },
 
       setAccessToken: (accessToken) => {
@@ -52,7 +50,6 @@ export const useAuthStore = create<AuthState>()(
         set({
           user: null,
           accessToken: null,
-          refreshToken: null,
           organizations: [],
           currentOrganizationId: null,
         });
@@ -69,12 +66,10 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'cumpliros-auth',
-      // SECURITY: Only persist non-sensitive data and refreshToken
-      // accessToken is kept in memory only to reduce XSS risk
+      // SECURITY: Only persist non-sensitive data.
+      // Tokens are kept in memory (access token) or httpOnly cookie (refresh token).
       partialize: (state) => ({
         user: state.user,
-        // accessToken is NOT persisted - kept in memory only
-        refreshToken: state.refreshToken,
         organizations: state.organizations,
         currentOrganizationId: state.currentOrganizationId,
       }),

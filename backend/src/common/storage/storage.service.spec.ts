@@ -3,12 +3,15 @@ import { StorageService } from './storage.service';
 
 // Mock AWS SDK
 vi.mock('@aws-sdk/client-s3', () => ({
-  S3Client: vi.fn().mockImplementation(() => ({
-    send: vi.fn(),
-  })),
+  S3Client: vi.fn().mockImplementation(function () {
+    return {
+      send: vi.fn(),
+    };
+  }),
   PutObjectCommand: vi.fn(),
   DeleteObjectCommand: vi.fn(),
   GetObjectCommand: vi.fn(),
+  HeadObjectCommand: vi.fn(),
   HeadBucketCommand: vi.fn(),
   CreateBucketCommand: vi.fn(),
 }));
@@ -40,9 +43,11 @@ describe('StorageService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockS3Send = vi.fn();
-    vi.mocked(S3Client).mockImplementation(() => ({
-      send: mockS3Send,
-    }) as any);
+    vi.mocked(S3Client).mockImplementation(function () {
+      return {
+        send: mockS3Send,
+      } as any;
+    });
 
     service = new StorageService(mockConfigService as any);
   });

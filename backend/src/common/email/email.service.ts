@@ -2,6 +2,19 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function safeText(value: unknown): string {
+  return escapeHtml(String(value ?? ''));
+}
+
 export interface EmailOptions {
   to: string | string[];
   subject: string;
@@ -42,19 +55,29 @@ export class EmailService {
       this.logger.log(`  To: ${recipients.join(', ')}`);
       this.logger.log(`  From: ${this.from}`);
       this.logger.log(`  Subject: ${subject}`);
-      this.logger.log(`  Body: ${text || html?.substring(0, 200)}...`);
+      this.logger.log(`  Body: [omitted] (${text ? 'text' : 'html'} length=${(text || html || '').length})`);
       this.logger.log('========================================');
       return true;
     }
 
+    const basePayload = {
+      from: this.from,
+      to: recipients,
+      subject,
+    };
+
     try {
-      const { data, error } = await this.resend.emails.send({
-        from: this.from,
-        to: recipients,
-        subject,
-        html,
-        text,
-      });
+      let sendResult: { data: { id?: string } | null; error: { message: string } | null };
+      if (html) {
+        sendResult = await this.resend.emails.send({ ...basePayload, html, ...(text ? { text } : {}) });
+      } else if (text) {
+        sendResult = await this.resend.emails.send({ ...basePayload, text });
+      } else {
+        this.logger.error('Email payload missing html/text content');
+        return false;
+      }
+
+      const { data, error } = sendResult;
 
       if (error) {
         this.logger.error(`Failed to send email: ${error.message}`, error);
@@ -84,14 +107,14 @@ export class EmailService {
       : `${obligations.length} obligaciones próximas a vencer - ${organizationName}`;
 
     const obligationsList = obligations
-      .map((o) => `<li><strong>${o.title}</strong> - vence en ${o.daysUntilDue} días</li>`)
+      .map((o) => `<li><strong>${safeText(o.title)}</strong> - vence en ${o.daysUntilDue} días</li>`)
       .join('\n');
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1a1a1a;">Hola ${recipientName},</h2>
+        <h2 style="color: #1a1a1a;">Hola ${safeText(recipientName)},</h2>
 
-        <p>Tienes <strong>${obligations.length}</strong> obligación(es) próxima(s) a vencer en <strong>${organizationName}</strong>:</p>
+        <p>Tienes <strong>${obligations.length}</strong> obligación(es) próxima(s) a vencer en <strong>${safeText(organizationName)}</strong>:</p>
 
         <ul style="background: #f5f5f5; padding: 20px; border-radius: 8px; list-style: none;">
           ${obligationsList}
@@ -122,14 +145,14 @@ export class EmailService {
     const subject = `[VENCIDO] ${obligations.length} obligaciones vencidas - ${organizationName}`;
 
     const obligationsList = obligations
-      .map((o) => `<li><strong>${o.title}</strong> - responsable: ${o.ownerName}</li>`)
+      .map((o) => `<li><strong>${safeText(o.title)}</strong> - responsable: ${safeText(o.ownerName)}</li>`)
       .join('\n');
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #dc2626;">⚠️ Alerta: Obligaciones Vencidas</h2>
 
-        <p>Hay <strong>${obligations.length}</strong> obligación(es) vencida(s) en <strong>${organizationName}</strong>:</p>
+        <p>Hay <strong>${obligations.length}</strong> obligación(es) vencida(s) en <strong>${safeText(organizationName)}</strong>:</p>
 
         <ul style="background: #fef2f2; padding: 20px; border-radius: 8px; list-style: none; border-left: 4px solid #dc2626;">
           ${obligationsList}
@@ -162,13 +185,13 @@ export class EmailService {
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1a1a1a;">Hola ${reviewerName},</h2>
+        <h2 style="color: #1a1a1a;">Hola ${safeText(reviewerName)},</h2>
 
         <p>Se requiere tu revisión para la siguiente obligación:</p>
 
         <div style="background: #f0f9ff; padding: 20px; border-radius: 8px; border-left: 4px solid #0284c7;">
-          <p><strong>Obligación:</strong> ${obligationTitle}</p>
-          <p><strong>Organización:</strong> ${organizationName}</p>
+          <p><strong>Obligación:</strong> ${safeText(obligationTitle)}</p>
+          <p><strong>Organización:</strong> ${safeText(organizationName)}</p>
         </div>
 
         <p>Por favor, accede al panel de cumplimiento para revisar y aprobar o rechazar.</p>
@@ -200,14 +223,14 @@ export class EmailService {
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1a1a1a;">Hola ${ownerName},</h2>
+        <h2 style="color: #1a1a1a;">Hola ${safeText(ownerName)},</h2>
 
         <p>La revisión de la siguiente obligación ha sido rechazada:</p>
 
         <div style="background: #fef2f2; padding: 20px; border-radius: 8px; border-left: 4px solid #dc2626;">
-          <p><strong>Obligación:</strong> ${obligationTitle}</p>
-          <p><strong>Revisado por:</strong> ${reviewerName}</p>
-          <p><strong>Observaciones:</strong> ${comment}</p>
+          <p><strong>Obligación:</strong> ${safeText(obligationTitle)}</p>
+          <p><strong>Revisado por:</strong> ${safeText(reviewerName)}</p>
+          <p><strong>Observaciones:</strong> ${safeText(comment)}</p>
         </div>
 
         <p>Por favor, corrige las observaciones y vuelve a enviar para revisión.</p>
@@ -235,7 +258,19 @@ export class EmailService {
     inviteToken: string,
     baseUrl: string,
   ): Promise<boolean> {
-    const inviteUrl = `${baseUrl}/auth/accept-invitation?token=${inviteToken}`;
+    let inviteUrl: string;
+    try {
+      const parsed = new URL(baseUrl);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new Error('Invalid baseUrl protocol');
+      }
+      const origin = parsed.origin;
+      const url = new URL('/auth/accept-invitation', origin);
+      url.searchParams.set('token', inviteToken);
+      inviteUrl = url.toString();
+    } catch {
+      inviteUrl = `http://localhost:3000/auth/accept-invitation?token=${encodeURIComponent(inviteToken)}`;
+    }
     const subject = `Invitación a ${organizationName} - CumpliRos`;
 
     const roleLabels: Record<string, string> = {
@@ -251,7 +286,7 @@ export class EmailService {
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #1a1a1a;">Has sido invitado a CumpliRos</h2>
 
-        <p><strong>${inviterName}</strong> te ha invitado a unirte a <strong>${organizationName}</strong> como <strong>${roleLabel}</strong>.</p>
+        <p><strong>${safeText(inviterName)}</strong> te ha invitado a unirte a <strong>${safeText(organizationName)}</strong> como <strong>${safeText(roleLabel)}</strong>.</p>
 
         <div style="background: #f0f9ff; padding: 20px; border-radius: 8px; text-align: center; margin: 30px 0;">
           <p>CumpliRos es una plataforma para gestionar obligaciones municipales de comercios y PyMEs.</p>

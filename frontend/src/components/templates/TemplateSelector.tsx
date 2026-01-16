@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Check, Loader2, FileText, AlertCircle, ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Rubric, TemplateSummary, ApplyTemplatesResult, JurisdictionSummary } from '@/types';
+import type { Rubric, TemplateSummary, ApplyTemplatesResult } from '@/types';
 
 interface TemplateSelectorProps {
   organizationId: string;
@@ -55,7 +55,7 @@ export function TemplateSelector({
         const params = jurisdictionId ? `?jurisdictionId=${jurisdictionId}` : '';
         const response = await api.get<Rubric[]>(`/templates/rubrics${params}`);
         setRubrics(response);
-      } catch (err) {
+      } catch {
         setError('Error al cargar rubros disponibles');
       } finally {
         setLoadingRubrics(false);
@@ -80,7 +80,7 @@ export function TemplateSelector({
         setTemplates(response);
         // Seleccionar todas las plantillas por defecto
         setSelectedTemplates(new Set(response.map((t) => t.id)));
-      } catch (err) {
+      } catch {
         setError('Error al cargar plantillas');
       } finally {
         setLoading(false);
@@ -125,8 +125,8 @@ export function TemplateSelector({
 
       setResult(response);
       onSuccess?.(response);
-    } catch (err: any) {
-      const errorMsg = err.message || 'Error al aplicar plantillas';
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Error al aplicar plantillas';
       setError(errorMsg);
       onError?.(errorMsg);
     } finally {

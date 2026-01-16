@@ -5,10 +5,10 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth.store';
 import { obligations } from '@/lib/api';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Filter } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { cn, formatDate, getTrafficLightColor, getStatusLabel, getTypeLabel } from '@/lib/utils';
 
 export default function ObligationsPage() {
@@ -39,7 +39,7 @@ export default function ObligationsPage() {
   }
 
   const obligationList = data?.data || [];
-  const filteredList = obligationList.filter((o: any) =>
+  const filteredList = obligationList.filter((o) =>
     o.title.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -97,7 +97,7 @@ export default function ObligationsPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {filteredList.map((obligation: any) => (
+          {filteredList.map((obligation) => (
             <Card key={obligation.id} className="hover:border-primary transition-colors">
               <CardContent className="p-4">
                 <div className="flex items-center gap-4">

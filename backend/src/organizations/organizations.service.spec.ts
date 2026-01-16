@@ -3,6 +3,9 @@ import { OrganizationsService } from './organizations.service';
 import { ConflictException, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 
 const mockPrismaService = {
+  jurisdiction: {
+    findUnique: vi.fn(),
+  },
   organization: {
     findUnique: vi.fn(),
     findFirst: vi.fn(),
@@ -48,6 +51,10 @@ const mockConfigService = {
   }),
 };
 
+const mockAuditService = {
+  log: vi.fn(),
+};
+
 describe('OrganizationsService', () => {
   let service: OrganizationsService;
 
@@ -57,6 +64,7 @@ describe('OrganizationsService', () => {
       mockPrismaService as any,
       mockEmailService as any,
       mockConfigService as any,
+      mockAuditService as any,
     );
   });
 
@@ -70,6 +78,7 @@ describe('OrganizationsService', () => {
 
     it('should create organization and assign creator as OWNER', async () => {
       mockPrismaService.organization.findUnique.mockResolvedValue(null);
+      mockPrismaService.jurisdiction.findUnique.mockResolvedValue({ id: 'jur-123' });
       mockPrismaService.organization.create.mockResolvedValue({
         id: 'org-123',
         ...createDto,

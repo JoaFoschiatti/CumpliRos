@@ -48,8 +48,8 @@ export class JurisdictionResponseDto {
   @ApiProperty({ example: 'AR' })
   country: string;
 
-  @ApiPropertyOptional({ example: 'Santa Fe' })
-  province?: string;
+  @ApiPropertyOptional({ example: 'Santa Fe', nullable: true })
+  province?: string | null;
 
   @ApiProperty()
   isActive: boolean;
@@ -77,6 +77,6 @@ export class JurisdictionSummaryDto {
   @ApiProperty({ example: 'Rosario' })
   name: string;
 
-  @ApiPropertyOptional({ example: 'Santa Fe' })
-  province?: string;
+  @ApiPropertyOptional({ example: 'Santa Fe', nullable: true })
+  province?: string | null;
 }

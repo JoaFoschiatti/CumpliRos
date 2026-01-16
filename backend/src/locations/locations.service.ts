@@ -1,13 +1,18 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import { AuditActions } from '../audit/dto/audit.dto';
 import { CreateLocationDto, UpdateLocationDto, LocationResponseDto } from './dto/location.dto';
 import { PaginationDto, createPaginatedResponse, PaginatedResponse } from '../common/dto/pagination.dto';
 
 @Injectable()
 export class LocationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
-  async create(organizationId: string, dto: CreateLocationDto): Promise<LocationResponseDto> {
+  async create(organizationId: string, dto: CreateLocationDto, userId?: string): Promise<LocationResponseDto> {
     // Check for duplicate name in same organization
     const existing = await this.prisma.location.findFirst({
       where: {
@@ -34,6 +39,15 @@ export class LocationsService {
         },
       },
     });
+
+    await this.auditService.log(
+      organizationId,
+      AuditActions.LOCATION_CREATED,
+      'Location',
+      location.id,
+      userId,
+      { name: location.name, rubric: location.rubric ?? undefined },
+    );
 
     return location;
   }
@@ -90,6 +104,7 @@ export class LocationsService {
     organizationId: string,
     locationId: string,
     dto: UpdateLocationDto,
+    userId?: string,
   ): Promise<LocationResponseDto> {
     const location = await this.prisma.location.findFirst({
       where: {
@@ -128,10 +143,19 @@ export class LocationsService {
       },
     });
 
+    await this.auditService.log(
+      organizationId,
+      AuditActions.LOCATION_UPDATED,
+      'Location',
+      locationId,
+      userId,
+      { changes: dto },
+    );
+
     return updated;
   }
 
-  async deactivate(organizationId: string, locationId: string): Promise<void> {
+  async deactivate(organizationId: string, locationId: string, userId?: string): Promise<void> {
     const location = await this.prisma.location.findFirst({
       where: {
         id: locationId,
@@ -147,5 +171,13 @@ export class LocationsService {
       where: { id: locationId },
       data: { active: false },
     });
+
+    await this.auditService.log(
+      organizationId,
+      AuditActions.LOCATION_DEACTIVATED,
+      'Location',
+      locationId,
+      userId,
+    );
   }
 }

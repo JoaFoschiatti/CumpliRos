@@ -20,6 +20,7 @@ const mockPrismaService = {
   },
   refreshToken: {
     findUnique: vi.fn(),
+    findFirst: vi.fn(),
     create: vi.fn(),
     delete: vi.fn(),
     deleteMany: vi.fn(),
@@ -44,10 +45,15 @@ const mockConfigService = {
     const config: Record<string, string> = {
       JWT_SECRET: 'test-secret',
       JWT_EXPIRES_IN: '7d',
+      JWT_REFRESH_SECRET: 'test-refresh-secret',
       JWT_REFRESH_EXPIRES_IN: '30d',
     };
     return config[key];
   }),
+};
+
+const mockAuditService = {
+  log: vi.fn(),
 };
 
 describe('AuthService', () => {
@@ -59,6 +65,7 @@ describe('AuthService', () => {
       mockPrismaService as any,
       mockJwtService as any,
       mockConfigService as any,
+      mockAuditService as any,
     );
   });
 
@@ -164,7 +171,7 @@ describe('AuthService', () => {
         },
       };
 
-      mockPrismaService.refreshToken.findUnique.mockResolvedValue(mockStoredToken);
+      mockPrismaService.refreshToken.findFirst.mockResolvedValue(mockStoredToken);
       mockPrismaService.refreshToken.delete.mockResolvedValue({});
       mockPrismaService.refreshToken.create.mockResolvedValue({});
 
@@ -175,13 +182,13 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException for invalid refresh token', async () => {
-      mockPrismaService.refreshToken.findUnique.mockResolvedValue(null);
+      mockPrismaService.refreshToken.findFirst.mockResolvedValue(null);
 
       await expect(service.refreshToken('invalid-token')).rejects.toThrow(UnauthorizedException);
     });
 
     it('should throw UnauthorizedException for expired refresh token', async () => {
-      mockPrismaService.refreshToken.findUnique.mockResolvedValue({
+      mockPrismaService.refreshToken.findFirst.mockResolvedValue({
         id: 'token-123',
         expiresAt: new Date(Date.now() - 86400000), // Yesterday
       });
@@ -240,7 +247,7 @@ describe('AuthService', () => {
         fullName: 'Test User',
       });
       mockPrismaService.userOrg.findUnique.mockResolvedValue(null);
-      mockPrismaService.$transaction.mockResolvedValue([]);
+      mockPrismaService.$transaction.mockResolvedValue([{ id: 'membership-123' }, {}]);
       mockPrismaService.refreshToken.create.mockResolvedValue({});
 
       const result = await service.acceptInvitation({ token: 'valid-token' });

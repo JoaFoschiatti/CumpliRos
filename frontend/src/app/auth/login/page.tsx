@@ -39,7 +39,7 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       const response = await auth.login(data.email, data.password);
-      setAuth(response.user, response.accessToken, response.refreshToken);
+      setAuth(response.user, response.accessToken);
 
       // Fetch profile to get organizations
       const profile = await auth.getProfile();
@@ -51,10 +51,10 @@ export default function LoginPage() {
       });
 
       router.push('/dashboard');
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Error',
-        description: error.message || 'Credenciales inválidas',
+        description: error instanceof Error ? error.message : 'Credenciales inválidas',
         variant: 'destructive',
       });
     } finally {

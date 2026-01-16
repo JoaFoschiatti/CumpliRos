@@ -7,7 +7,6 @@ export interface User {
 
 export interface AuthResponse {
   accessToken: string;
-  refreshToken: string;
   user: User;
 }
 
@@ -21,7 +20,7 @@ export interface Jurisdiction {
   code: string;
   name: string;
   country: string;
-  province?: string;
+  province?: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -33,7 +32,7 @@ export interface JurisdictionSummary {
   id: string;
   code: string;
   name: string;
-  province?: string;
+  province?: string | null;
 }
 
 // Organization types
@@ -41,8 +40,8 @@ export interface Organization {
   id: string;
   cuit: string;
   name: string;
-  jurisdictionId?: string;
-  jurisdiction?: JurisdictionSummary;
+  jurisdictionId?: string | null;
+  jurisdiction?: JurisdictionSummary | null;
   plan: 'BASIC' | 'PROFESSIONAL' | 'STUDIO';
   thresholdYellowDays: number;
   thresholdRedDays: number;
@@ -61,15 +60,33 @@ export interface OrganizationMembership {
   role: Role;
 }
 
+export interface OrganizationMember {
+  id: string;
+  userId: string;
+  email: string;
+  fullName: string;
+  role: Role;
+  joinedAt: string;
+}
+
 export type Role = 'OWNER' | 'ADMIN' | 'ACCOUNTANT' | 'MANAGER';
+
+export interface OrganizationStats {
+  totalLocations: number;
+  totalObligations: number;
+  obligationsOverdue: number;
+  obligationsUpcoming7Days: number;
+  obligationsUpcoming15Days: number;
+  obligationsCompleted: number;
+}
 
 // Location types
 export interface Location {
   id: string;
   organizationId: string;
   name: string;
-  address?: string;
-  rubric?: string;
+  address?: string | null;
+  rubric?: string | null;
   active: boolean;
   createdAt: string;
   _count?: {
@@ -214,6 +231,25 @@ export interface Review {
   };
 }
 
+// Audit types
+export interface AuditEvent {
+  id: string;
+  organizationId: string;
+  userId?: string;
+  action: string;
+  entityType: string;
+  entityId?: string;
+  metadata?: Record<string, unknown>;
+  ipAddress?: string;
+  userAgent?: string;
+  createdAt: string;
+  user?: {
+    id: string;
+    fullName: string;
+    email: string;
+  };
+}
+
 // Pagination
 export interface PaginatedResponse<T> {
   data: T[];
@@ -259,6 +295,18 @@ export interface ComplianceReport {
     completed: number;
     overdue: number;
   }>;
+}
+
+export interface ObligationReportItem {
+  id: string;
+  title: string;
+  type: string;
+  status: string;
+  dueDate: string;
+  locationName?: string;
+  ownerName: string;
+  documentsCount: number;
+  hasApprovedReview: boolean;
 }
 
 // Template types

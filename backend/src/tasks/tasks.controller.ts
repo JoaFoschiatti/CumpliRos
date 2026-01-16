@@ -32,6 +32,8 @@ import {
 import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { OrganizationGuard } from '../common/guards/organization.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { AuthenticatedUser } from '../common/interfaces/request.interface';
 
 @ApiTags('tasks')
 @ApiBearerAuth()
@@ -47,8 +49,9 @@ export class TasksController {
   async create(
     @Param('organizationId') organizationId: string,
     @Body() dto: CreateTaskDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<TaskResponseDto> {
-    return this.tasksService.create(organizationId, dto);
+    return this.tasksService.create(organizationId, dto, user.id);
   }
 
   @Get()
@@ -93,8 +96,9 @@ export class TasksController {
     @Param('organizationId') organizationId: string,
     @Param('taskId') taskId: string,
     @Body() dto: UpdateTaskDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<TaskResponseDto> {
-    return this.tasksService.update(organizationId, taskId, dto);
+    return this.tasksService.update(organizationId, taskId, dto, user.id);
   }
 
   @Delete(':taskId')
@@ -106,8 +110,9 @@ export class TasksController {
   async delete(
     @Param('organizationId') organizationId: string,
     @Param('taskId') taskId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
-    await this.tasksService.delete(organizationId, taskId);
+    await this.tasksService.delete(organizationId, taskId, user.id);
   }
 
   // Task Items (Checklist)
@@ -120,8 +125,9 @@ export class TasksController {
     @Param('organizationId') organizationId: string,
     @Param('taskId') taskId: string,
     @Body() dto: CreateTaskItemDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<TaskItemResponseDto> {
-    return this.tasksService.addItem(organizationId, taskId, dto);
+    return this.tasksService.addItem(organizationId, taskId, dto, user.id);
   }
 
   @Patch(':taskId/items/:itemId')
@@ -135,8 +141,9 @@ export class TasksController {
     @Param('taskId') taskId: string,
     @Param('itemId') itemId: string,
     @Body() dto: UpdateTaskItemDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<TaskItemResponseDto> {
-    return this.tasksService.updateItem(organizationId, taskId, itemId, dto);
+    return this.tasksService.updateItem(organizationId, taskId, itemId, dto, user.id);
   }
 
   @Post(':taskId/items/:itemId/toggle')
@@ -149,8 +156,9 @@ export class TasksController {
     @Param('organizationId') organizationId: string,
     @Param('taskId') taskId: string,
     @Param('itemId') itemId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<TaskItemResponseDto> {
-    return this.tasksService.toggleItem(organizationId, taskId, itemId);
+    return this.tasksService.toggleItem(organizationId, taskId, itemId, user.id);
   }
 
   @Delete(':taskId/items/:itemId')
@@ -164,7 +172,8 @@ export class TasksController {
     @Param('organizationId') organizationId: string,
     @Param('taskId') taskId: string,
     @Param('itemId') itemId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
-    await this.tasksService.deleteItem(organizationId, taskId, itemId);
+    await this.tasksService.deleteItem(organizationId, taskId, itemId, user.id);
   }
 }

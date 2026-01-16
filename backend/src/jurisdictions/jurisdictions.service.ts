@@ -6,7 +6,7 @@ import {
   JurisdictionResponseDto,
   JurisdictionSummaryDto,
 } from './dto/jurisdiction.dto';
-import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
+import { PaginationDto, createPaginatedResponse, PaginatedResponse } from '../common/dto/pagination.dto';
 
 // ID fijo de Rosario para compatibilidad hacia atras
 export const ROSARIO_JURISDICTION_ID = '00000000-0000-0000-0000-000000000001';
@@ -63,15 +63,8 @@ export class JurisdictionsService {
       this.prisma.jurisdiction.count({ where }),
     ]);
 
-    return {
-      data: jurisdictions.map((j) => this.toResponseDto(j, j._count)),
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
+    const data = jurisdictions.map((j) => this.toResponseDto(j, j._count));
+    return createPaginatedResponse(data, total, page, limit);
   }
 
   async findAllActive(): Promise<JurisdictionSummaryDto[]> {

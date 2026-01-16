@@ -87,6 +87,7 @@ export const AuditActions = {
   USER_JOINED: 'user.joined',
   USER_ROLE_CHANGED: 'user.role_changed',
   USER_REMOVED: 'user.removed',
+  INVITATION_CANCELLED: 'invitation.cancelled',
 
   // Location
   LOCATION_CREATED: 'location.created',

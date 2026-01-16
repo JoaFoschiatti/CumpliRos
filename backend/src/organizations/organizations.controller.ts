@@ -126,8 +126,9 @@ export class OrganizationsController {
   async inviteMember(
     @Param('organizationId') organizationId: string,
     @Body() dto: InviteUserDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<{ token: string }> {
-    return this.organizationsService.inviteMember(organizationId, dto);
+    return this.organizationsService.inviteMember(organizationId, dto, user.id);
   }
 
   @Get(':organizationId/invitations')

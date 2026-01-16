@@ -1,0 +1,347 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =====================================================
+// ORGANIZATION & MULTI-TENANCY
+// =====================================================
+
+model Organization {
+  id                  String   @id @default(uuid()) @db.Uuid
+  cuit                String   @unique @db.VarChar(13)
+  name                String   @db.VarChar(255)
+  plan                Plan     @default(BASIC)
+  thresholdYellowDays Int      @default(15) @map("threshold_yellow_days")
+  thresholdRedDays    Int      @default(7) @map("threshold_red_days")
+  retentionMonths     Int      @default(24) @map("retention_months")
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  locations    Location[]
+  userOrgs     UserOrg[]
+  obligations  Obligation[]
+  documents    Document[]
+  auditEvents  AuditEvent[]
+  invitations  Invitation[]
+
+  @@map("organizations")
+}
+
+enum Plan {
+  BASIC
+  PROFESSIONAL
+  STUDIO
+}
+
+// =====================================================
+// LOCATIONS (Locales)
+// =====================================================
+
+model Location {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String   @db.VarChar(255)
+  address        String?  @db.VarChar(500)
+  rubric         String?  @db.VarChar(255)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  obligations  Obligation[]
+
+  @@index([organizationId])
+  @@map("locations")
+}
+
+// =====================================================
+// USERS & AUTHENTICATION
+// =====================================================
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique @db.VarChar(255)
+  fullName     String   @map("full_name") @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  userOrgs         UserOrg[]
+  ownedObligations Obligation[]  @relation("ObligationOwner")
+  assignedTasks    Task[]        @relation("TaskAssignee")
+  uploadedDocs     Document[]    @relation("DocumentUploader")
+  reviews          Review[]      @relation("ReviewReviewer")
+  auditEvents      AuditEvent[]
+  refreshTokens    RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique @db.VarChar(500)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+// =====================================================
+// USER-ORGANIZATION MEMBERSHIP (RBAC)
+// =====================================================
+
+model UserOrg {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  role           Role
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("user_orgs")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  ACCOUNTANT
+  MANAGER
+}
+
+// =====================================================
+// INVITATIONS
+// =====================================================
+
+model Invitation {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  email          String           @db.VarChar(255)
+  role           Role
+  token          String           @unique @db.VarChar(255)
+  status         InvitationStatus @default(PENDING)
+  expiresAt      DateTime         @map("expires_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([email])
+  @@index([token])
+  @@map("invitations")
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+}
+
+// =====================================================
+// OBLIGATIONS (Obligaciones)
+// =====================================================
+
+model Obligation {
+  id                    String            @id @default(uuid()) @db.Uuid
+  organizationId        String            @map("organization_id") @db.Uuid
+  locationId            String?           @map("location_id") @db.Uuid
+  title                 String            @db.VarChar(255)
+  description           String?           @db.Text
+  type                  ObligationType
+  status                ObligationStatus  @default(PENDING)
+  dueDate               DateTime          @map("due_date") @db.Date
+  recurrenceRule        String?           @map("recurrence_rule") @db.VarChar(100)
+  requiresReview        Boolean           @default(false) @map("requires_review")
+  requiredEvidenceCount Int               @default(0) @map("required_evidence_count")
+  ownerUserId           String            @map("owner_user_id") @db.Uuid
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  location     Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  owner        User         @relation("ObligationOwner", fields: [ownerUserId], references: [id])
+  tasks        Task[]
+  documents    Document[]   @relation("ObligationDocuments")
+  reviews      Review[]
+
+  @@index([organizationId, dueDate])
+  @@index([organizationId, status])
+  @@index([locationId])
+  @@index([ownerUserId])
+  @@map("obligations")
+}
+
+enum ObligationType {
+  TAX           // Impuestos
+  PERMIT        // Habilitaciones/Permisos
+  INSURANCE     // Seguros
+  INSPECTION    // Inspecciones
+  DECLARATION   // Declaraciones juradas
+  RENEWAL       // Renovaciones
+  OTHER         // Otros
+}
+
+enum ObligationStatus {
+  PENDING       // Pendiente
+  IN_PROGRESS   // En curso
+  COMPLETED     // Cumplida
+  OVERDUE       // Vencida
+  NOT_APPLICABLE // No aplica
+}
+
+// =====================================================
+// TASKS & CHECKLISTS
+// =====================================================
+
+model Task {
+  id               String     @id @default(uuid()) @db.Uuid
+  obligationId     String     @map("obligation_id") @db.Uuid
+  assignedToUserId String?    @map("assigned_to_user_id") @db.Uuid
+  title            String     @db.VarChar(255)
+  description      String?    @db.Text
+  status           TaskStatus @default(OPEN)
+  dueDate          DateTime?  @map("due_date") @db.Date
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  obligation Obligation @relation(fields: [obligationId], references: [id], onDelete: Cascade)
+  assignee   User?      @relation("TaskAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  items      TaskItem[]
+  documents  Document[] @relation("TaskDocuments")
+
+  @@index([obligationId])
+  @@index([assignedToUserId])
+  @@index([status])
+  @@map("tasks")
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  BLOCKED
+  COMPLETED
+  CANCELLED
+}
+
+model TaskItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  taskId      String   @map("task_id") @db.Uuid
+  description String   @db.VarChar(500)
+  done        Boolean  @default(false)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@map("task_items")
+}
+
+// =====================================================
+// DOCUMENTS (Evidencias)
+// =====================================================
+
+model Document {
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  obligationId     String?  @map("obligation_id") @db.Uuid
+  taskId           String?  @map("task_id") @db.Uuid
+  uploadedByUserId String   @map("uploaded_by_user_id") @db.Uuid
+  fileName         String   @map("file_name") @db.VarChar(255)
+  fileKey          String   @map("file_key") @db.VarChar(500) // S3 key
+  mimeType         String   @map("mime_type") @db.VarChar(100)
+  sizeBytes        Int      @map("size_bytes")
+  uploadedAt       DateTime @default(now()) @map("uploaded_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  obligation   Obligation?  @relation("ObligationDocuments", fields: [obligationId], references: [id], onDelete: SetNull)
+  task         Task?        @relation("TaskDocuments", fields: [taskId], references: [id], onDelete: SetNull)
+  uploadedBy   User         @relation("DocumentUploader", fields: [uploadedByUserId], references: [id])
+
+  @@index([organizationId, obligationId])
+  @@index([organizationId])
+  @@index([taskId])
+  @@map("documents")
+}
+
+// =====================================================
+// REVIEWS (Revisiones)
+// =====================================================
+
+model Review {
+  id             String       @id @default(uuid()) @db.Uuid
+  obligationId   String       @map("obligation_id") @db.Uuid
+  reviewerUserId String       @map("reviewer_user_id") @db.Uuid
+  status         ReviewStatus
+  comment        String?      @db.Text
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  // Relations
+  obligation Obligation @relation(fields: [obligationId], references: [id], onDelete: Cascade)
+  reviewer   User       @relation("ReviewReviewer", fields: [reviewerUserId], references: [id])
+
+  @@index([obligationId])
+  @@index([reviewerUserId])
+  @@map("reviews")
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// =====================================================
+// AUDIT (Auditoría)
+// =====================================================
+
+model AuditEvent {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  userId         String?  @map("user_id") @db.Uuid
+  action         String   @db.VarChar(100)
+  entityType     String   @map("entity_type") @db.VarChar(50)
+  entityId       String?  @map("entity_id") @db.Uuid
+  metadata       Json?    @db.JsonB
+  ipAddress      String?  @map("ip_address") @db.VarChar(45)
+  userAgent      String?  @map("user_agent") @db.VarChar(500)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, entityType])
+  @@index([userId])
+  @@map("audit_events")
+}
